@@ -10,4 +10,5 @@ Data Structures and Algorithms
 
 -------
 (Started to use iPython Notebook for remaining assignments)
+
 *[Assignment 2, part 2](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/assign2-2.ipynb):* Winning Strategies
