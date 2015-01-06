@@ -9,7 +9,7 @@ Data Structures and Algorithms
 *[Assignment 2, part 1](https://github.com/bshur2008/ischool/blob/master/Algorithms/assign2p1.py):* Recursive word scramble
 
 -------
-(Started to use iPython Notebook for remaining assignments)
+(Started to use [iPython Notebook](http://ipython.org/notebook.html) for remaining assignments)
 
 -------
 
