@@ -14,5 +14,6 @@ Data Structures and Algorithms
 -------
 
 *[Assignment 2, part 2](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/assign2-2.ipynb):* Winning Strategies
+
 *[Assignment 3, part 2](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/assign3-2.ipynb):* Complexity
 
