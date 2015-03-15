@@ -16,5 +16,6 @@ Data Structures and Algorithms
 *[Assignment 2, part 2](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/assign2-2.ipynb):* Winning Strategies  
 *[Assignment 3, part 2](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/assign3-2.ipynb):* Complexity  
 *[Assignment 4](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/assign4-1.ipynb):* Stack algorithm  
-*[Assignment 5](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/Assign5-1.ipynb):* Graph   
+*[Assignment 5](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/Assign5-2.ipynb):* Graph (currently incorrect)    
+*[Assignment 6](http://nbviewer.ipython.org/github/bshur2008/ischool/blob/master/Algorithms/Assign6-1.ipynb):* Hash Maps    
 
