@@ -33,4 +33,5 @@ im.test <- foreach(im = im.test, .combine=rbind) %dopar% {
   as.integer(unlist(strsplit(im, " ")))
 }
 
-
+# Save data 
+save(d.train, im.train, d.test, im.test, file=paste0(data.dir,'data.Rd'))
