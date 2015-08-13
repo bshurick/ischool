@@ -357,7 +357,7 @@ comb2 <- comb2[, c("ResponseID",
                     "LocationLatitude",
                     "LocationLongitude",
                     "LocationAccuracy")]
-comb <- rbind(comb,comb2)$placebo
+comb <- rbind(comb,comb2)
 comb[is.na(comb$textmath),'textmath'] <- 0
 comb[is.na(comb$videomath),'videomath'] <- 0
 comb[is.na(comb$placebo),'placebo'] <- 0
