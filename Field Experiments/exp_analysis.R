@@ -400,7 +400,20 @@ ddply(comb,.(textmath,videomath,placebo),summarize,
 # 2        0         1       0 17.050980 mins
 # 3        1         0       0 17.172840 mins
 
-summary(with(comb,lm(d_in_d~textmath+videomath+placebo+skillmath)))
+summary(with(comb,lm(d_in_d\
+                     ~textmath\
+                     +videomath
+                     +placebo
+                     +skillmath
+                     +leveled
+                     +skillmath
+                     +englishreading
+                     +englishlistening
+                     +ageyears
+                     +gender1m
+                     +countrybirth
+                     +countryresidence
+              )))
 
 # Call:
 #   lm(formula = d_in_d ~ textmath + videomath + placebo + skillmath)
