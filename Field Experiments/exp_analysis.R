@@ -385,23 +385,11 @@ with(comb,mean(d_in_d[textmath==1],na.rm=T)-mean(d_in_d[placebo==1],na.rm=T))
 with(comb,mean(d_in_d[videomath==1],na.rm=T)-mean(d_in_d[placebo==1],na.rm=T))
 with(comb,mean(d_in_d[videomath==1],na.rm=T)-mean(d_in_d[textmath==1],na.rm=T))
 
-# > with(comb,mean(d_in_d[textmath==1],na.rm=T)-mean(d_in_d[placebo==1],na.rm=T))
-# [1] -0.4662338
-# > with(comb,mean(d_in_d[videomath==1],na.rm=T)-mean(d_in_d[placebo==1],na.rm=T))
-# [1] -0.1238095
-# > with(comb,mean(d_in_d[videomath==1],na.rm=T)-mean(d_in_d[textmath==1],na.rm=T))
-# [1] 0.3424242
-
 ddply(comb,.(textmath,videomath,placebo),summarize,
       avg_testtime = mean(testtime,na.rm=T))
 
-# textmath videomath placebo   avg_testtime
-# 1        0         0       1  9.855833 mins
-# 2        0         1       0 17.050980 mins
-# 3        1         0       0 17.172840 mins
-
-summary(with(comb,lm(d_in_d\
-                     ~textmath\
+summary(with(comb,lm(d_in_d
+                     ~textmath
                      +videomath
                      +placebo
                      +skillmath
@@ -415,31 +403,6 @@ summary(with(comb,lm(d_in_d\
                      +countryresidence
               )))
 
-# Call:
-#   lm(formula = d_in_d ~ textmath + videomath + placebo + skillmath)
-# 
-# Residuals:
-#   Min      1Q  Median      3Q     Max 
-# -4.8242 -0.9782  0.0732  0.9231  4.0732 
-# 
-# Coefficients: (1 not defined because of singularities)
-# Estimate Std. Error t value Pr(>|t|)
-# (Intercept)  -0.4166     0.4386  -0.950    0.345
-# textmath     -0.5488     0.4294  -1.278    0.205
-# videomath    -0.2488     0.3996  -0.623    0.535
-# placebo           NA         NA      NA       NA
-# skillmath     0.1974     0.1459   1.353    0.180
-# 
-# Residual standard error: 1.562 on 83 degrees of freedom
-# (14 observations deleted due to missingness)
-# Multiple R-squared:  0.03554,  Adjusted R-squared:  0.0006794 
-# F-statistic: 1.019 on 3 and 83 DF,  p-value: 0.3883
-
 ddply(comb,.(textmath,videomath,placebo),summarize,
       avg_skillmath = mean(skillmath,na.rm=T))
-
-# textmath videomath placebo avg_skillmath
-# 1        0         0       1      2.475000
-# 2        0         1       0      3.117647
-# 3        1         0       0      2.814815
 
