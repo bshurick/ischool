@@ -1,7 +1,9 @@
 
 require(plyr)
-comb <- read.csv('/Users/bshur/School/Field\ Experiments/CombinatoricsPilot.csv',header=T)
-comb2 <- read.csv('/Users/bshur/School/Field\ Experiments/CombinatoricsPilot_fixed-2.csv',header=T)
+file1 <- '/Users/bshur/School/Field\ Experiments/CombinatoricsPilot.csv'
+file2 <- '/Users/bshur/School/Field\ Experiments/CombinatoricsPilot_fixed-2.csv'
+comb <- read.csv(file1,header=T)
+comb2 <- read.csv(file2,header=T)
 Renamecols1 <- function(df) {
   colnames(df)<- c(
     "ResponseID",
