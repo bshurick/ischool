@@ -278,48 +278,7 @@ Renamecols2 <- function(df) {
   return(df)
 }
 
-comb <- Renamecols1(comb)[, c("ResponseID",
-                   "ResponseSet",
-                   "Name",
-                   "ExternalDataReference",
-                   "EmailAddress",
-                   "IPAddress",
-                   "Status",
-                   "StartDate",
-                   "EndDate",
-                   "Finished",
-                   "random",
-                   "leveled",
-                   "skillmath",
-                   "englishreading",
-                   "englishlistening",
-                   "ageyears",
-                   "gender1m",
-                   "countrybirth",
-                   "countryresidence",
-                   "pre1_10",
-                   "pre2_10",
-                   "pre3_6",
-                   "pre4_10",
-                   "pre5_c",
-                   "pre6_4",
-                   "textmath",
-                   "videomath",
-                   "placebo",
-                   "post1_15",
-                   "post2_3",
-                   "post3_6",
-                   "post4_35",
-                   "post5_c",
-                   "post6_4",
-                   "confirmationcode",
-                   "LocationLatitude",
-                   "LocationLongitude",
-                   "LocationAccuracy")]
-
-comb2 <- Renamecols2(comb2)
-comb2$placebo <- rep(NA,nrow(comb2))
-comb2 <- comb2[, c("ResponseID",
+cols <- c("ResponseID",
                     "ResponseSet",
                     "Name",
                     "ExternalDataReference",
@@ -356,8 +315,14 @@ comb2 <- comb2[, c("ResponseID",
                     "confirmationcode",
                     "LocationLatitude",
                     "LocationLongitude",
-                    "LocationAccuracy")]
-#comb <- rbind(comb,comb2)
+                    "LocationAccuracy")
+
+comb <- Renamecols1(comb)[, cols]
+
+comb2 <- Renamecols2(comb2)
+comb2$placebo <- rep(NA,nrow(comb2))
+comb2 <- comb2[, cols]
+comb <- rbind(comb,comb2)
 comb[is.na(comb$textmath),'textmath'] <- 0
 comb[is.na(comb$videomath),'videomath'] <- 0
 comb[is.na(comb$placebo),'placebo'] <- 0
@@ -407,4 +372,3 @@ summary(with(comb,lm(d_in_d
 
 ddply(comb,.(textmath,videomath,placebo),summarize,
       avg_skillmath = mean(skillmath,na.rm=T))
-
