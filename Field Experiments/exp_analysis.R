@@ -270,6 +270,11 @@ Renamecols2 <- function(df) {
     "post6_4pagesubmit",
     "post6_4clickcount",
     "post6_4",
+    "firstclick22",
+    "firstlast22",
+    "submit22",
+    "count22",
+    "nextq",
     "confirmationcode",
     "LocationLatitude",
     "LocationLongitude",
@@ -329,23 +334,54 @@ comb[is.na(comb$placebo),'placebo'] <- 0
 
 comb <- within(comb,{
   pre1 <- (pre1_10==10)*1
+  pre1 <- ifelse(is.na(pre1),0,pre1)
   pre2 <- (pre2_10==10)*1
+  pre2 <- ifelse(is.na(pre2),0,pre2)
   pre3 <- (pre3_6==6)*1
+  pre3 <- ifelse(is.na(pre3),0,pre3)
   pre4 <- (pre4_10==10)*1
-  pre5 <- ifelse(pre5_c=='',NA,pre5_c)
-  pre5 <- (tolower(pre5_c)=='c')*1
+  pre4 <- ifelse(is.na(pre4),0,pre4)
+  pre5 <- ifelse(pre5_c=='',NA,factor(pre5_c))
+  pre5 <- as.numeric(tolower(as.character(pre5_c))=='c')*1
+  pre5 <- ifelse(is.na(pre5),0,pre5)
   pre6 <- (pre6_4==4)*1
+  pre6 <- ifelse(is.na(pre6),0,pre6)
   post1 <- (post1_15==15)*1
+  post1 <- ifelse(is.na(post1),0,post1)
   post2 <- (post2_3==3)*1
+  post2 <- ifelse(is.na(post2),0,post2)
   post3 <- (post3_6==6)*1
+  post3 <- ifelse(is.na(post3),0,post3)
   post4 <- (post4_35==35)*1
-  post5 <- ifelse(post5_c=='',NA,post5_c)
-  post5 <- (tolower(post5_c)=='c')*1
+  post4 <- ifelse(is.na(post4),0,post4)
+  post5 <- ifelse(post5_c=='',NA,factor(post5_c))
+  post5 <- as.numeric(tolower(as.character(post5_c))=='c')*1
+  post5 <- ifelse(is.na(post5),0,post5)
   post6 <- (post6_4==4)*1
+  post6 <- ifelse(is.na(post6),0,post6)
   prescore <- pre1+pre2+pre3+pre4+pre5+pre6
   postscore <- post1+post2+post3+post4+post5+post6
   d_in_d <- postscore-prescore
   testtime <- as.POSIXlt(EndDate)-as.POSIXlt(StartDate)
+  countrybirth <- as.factor(tolower(countrybirth))
+  countrybirth <- as.factor(ifelse(countrybirth=='united states','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='united states ','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='us','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='united states of america','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='the united states of america','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='the united states of america','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='uas','usa',as.character(countrybirth)))
+  countrybirth <- as.factor(ifelse(countrybirth=='usa ','usa',as.character(countrybirth)))
+  countryresidence <- as.factor(tolower(countryresidence))
+  countryresidence <- as.factor(ifelse(countryresidence=='united states','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='united states ','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='us','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='united states of america','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='the united states of america','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='the united states of america','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='uas','usa',as.character(countryresidence)))
+  countryresidence <- as.factor(ifelse(countryresidence=='usa ','usa',as.character(countryresidence)))
+  gender <- as.character(ifelse(gender1m==1,'m','f'))
 })
 
 with(comb,mean(d_in_d[textmath==1],na.rm=T)-mean(d_in_d[placebo==1],na.rm=T))
@@ -365,9 +401,10 @@ summary(with(comb,lm(d_in_d
                      +englishreading
                      +englishlistening
                      +ageyears
-                     +gender1m
+                     +gender
                      +countrybirth
-                     +countryresidence
+                     +englishreading*textmath*videomath*placebo
+                     +englishlistening*textmath*videomath*placebo
               )))
 
 ddply(comb,.(textmath,videomath,placebo),summarize,
