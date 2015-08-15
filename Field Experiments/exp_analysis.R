@@ -357,7 +357,7 @@ comb2 <- comb2[, c("ResponseID",
                     "LocationLatitude",
                     "LocationLongitude",
                     "LocationAccuracy")]
-comb <- rbind(comb,comb2)
+#comb <- rbind(comb,comb2)
 comb[is.na(comb$textmath),'textmath'] <- 0
 comb[is.na(comb$videomath),'videomath'] <- 0
 comb[is.na(comb$placebo),'placebo'] <- 0
@@ -367,12 +367,14 @@ comb <- within(comb,{
   pre2 <- (pre2_10==10)*1
   pre3 <- (pre3_6==6)*1
   pre4 <- (pre4_10==10)*1
+  pre5 <- ifelse(pre5_c=='',NA,pre5_c)
   pre5 <- (tolower(pre5_c)=='c')*1
   pre6 <- (pre6_4==4)*1
   post1 <- (post1_15==15)*1
   post2 <- (post2_3==3)*1
   post3 <- (post3_6==6)*1
   post4 <- (post4_35==35)*1
+  post5 <- ifelse(post5_c=='',NA,post5_c)
   post5 <- (tolower(post5_c)=='c')*1
   post6 <- (post6_4==4)*1
   prescore <- pre1+pre2+pre3+pre4+pre5+pre6
