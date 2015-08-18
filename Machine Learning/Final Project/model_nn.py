@@ -1640,7 +1640,6 @@ logger.info('Model for collar_id ended')
 # In[9]:
 
 logger.info('Metaclass model diagnostics started')
-x = vect_address.transform(dev_test['AddressMod'])
 dev_test = pd.concat([dev_test,pd.DataFrame(x,index=train_raw.index)],axis=1,join='inner')
 dev_test = dev_test.drop('AddressMod',1)
 
