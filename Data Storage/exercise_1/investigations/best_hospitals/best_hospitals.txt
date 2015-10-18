@@ -15,3 +15,5 @@ Care and Readmissions and Death metrics. It places on average around the 70th
 percentile compared to other hospitals ranked in order of scores on each
 metric. 
 
+I chose to evaluate hospitals based on their average percentile ranking across
+all procedure scores because the scale of scores for each metric numerically differ, so in order to calculate the relative score overall it is necessary to scale the metric evenly and percentile ranking is somewhat less complicated to interpret than scaling each score by the number of standard deviations away from the mean, for example -- especially because some of the scores are likely not normally distributed anyway. 
