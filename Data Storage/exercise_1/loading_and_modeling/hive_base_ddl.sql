@@ -13,8 +13,7 @@ Hospital_Type string,
 Hospital_Ownership string,
 Emergency_Services string
 )
-ROW FORMAT DELIMITED
-FIELDS TERMINATED BY ',' 
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/hospitals'
 ;
@@ -38,8 +37,7 @@ Footnote string,
 Measure_Start_Date string,
 Measure_End_Date string
 )
-ROW FORMAT DELIMITED
-FIELDS TERMINATED BY ',' 
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/effective_care'
 ;
@@ -65,8 +63,7 @@ Footnote string,
 Measure_Start_Date string,
 Measure_End_Date string
 )
-ROW FORMAT DELIMITED
-FIELDS TERMINATED BY ',' 
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/readmissions'
 ;
@@ -80,8 +77,7 @@ Measure_Start_Date string,
 Measure_End_Quarter string,
 Measure_End_Date string
 )
-ROW FORMAT DELIMITED
-FIELDS TERMINATED BY ','
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/measure_dates'
 ;
@@ -122,8 +118,7 @@ Overall_Rating_of_Hospital_Dimension_Score string,
 HCAHPS_Base_Score string,
 HCAHPS_Consistency_Score string
 )
-ROW FORMAT DELIMITED
-FIELDS TERMINATED BY ','
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/surveys_responses'
 ;
