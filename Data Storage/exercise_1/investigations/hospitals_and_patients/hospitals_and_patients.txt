@@ -2,4 +2,4 @@ corr_rank
 -0.3161563970341039
 
 There appears to be a negative correlation between scores for hospital quality
-and patient survey responses 
+and patient survey responses. 
