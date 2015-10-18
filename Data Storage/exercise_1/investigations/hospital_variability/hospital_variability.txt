@@ -1,0 +1,19 @@
+h.measure_name	stddev_score
+Aspirin at Arrival	0.40141047849630673
+Prophylactic Antibiotic Selection for Surgical Patients	0.39932468355002393
+Timing of Antibiotic Prophylaxis	0.39800169870191054
+Intensive Care Unit Venous Thromboembolism Prophylaxis	0.3921133141143547
+Venous Thromboembolism (VTE) Prophylaxis	0.380702639143607
+Discharged on Statin Medication	0.37959204928057044
+Assessed for Rehabilitation	0.3743499538319948
+Influenza Immunization	0.3732353746196788
+Surgery Patients Who Received Appropriate Venous Thromboembolism Prophylaxis Within 24 Hours Prior to Surgery to 24 Hours After Surgery	0.372977377511831
+Median Time to ECG	0.37210937602166194
+
+Aspirin at Arrival has the highest variability when measured as standard
+deviation of percentile ranking across hospitals. Standard deviation is the
+metric of choice to show dispersion when the units are consistent among
+metrics, which is the case because I continue to use percentile ranking for
+each procedure among hospitals. 
+
+

@@ -6,7 +6,12 @@ SELECT
 provider_id ,
 measure_id ,
 'Effective_Care' as procedure_type ,
-case when score='Not Available' then null else score end as score,
+case when score='Not Available' then null 
+	when score like 'Very High%' then '4'
+	when score like 'High%' then '3' 
+	when score like 'Medium%' then '2' 
+	when score like 'Low%' then '1' 
+		else score end as score ,
 footnote ,
 null as Compared_to_National , 
 null as Denominator ,
@@ -20,7 +25,12 @@ SELECT
 provider_id ,
 measure_id ,
 'Readmissions_And_Deaths' as procedure_type ,
-case when score='Not Available' then null else score end as score ,
+case when score='Not Available' then null 
+        when score like 'Very High%' then '4'
+        when score like 'High%' then '3'
+        when score like 'Medium%' then '2'
+        when score like 'Low%' then '1'
+                else score end as score ,
 footnote ,
 Compared_to_National ,
 Denominator ,
