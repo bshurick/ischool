@@ -1,5 +1,9 @@
-DROP TABLE hospitals;
-CREATE EXTERNAL TABLE hospitals 
+DROP DATABASE IF EXISTS staging;
+DROP DATABASE IF EXISTS production;
+CREATE DATABASE staging;
+CREATE DATABASE production;
+DROP TABLE staging.hospitals;
+CREATE EXTERNAL TABLE staging.hospitals 
 (
 Provider_ID string,
 Hospital_Name string,
@@ -17,8 +21,8 @@ ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/hospitals'
 ;
-DROP TABLE effective_care;
-CREATE EXTERNAL TABLE effective_care
+DROP TABLE staging.effective_care;
+CREATE EXTERNAL TABLE staging.effective_care
 (
 Provider_ID string,
 Hospital_Name string,
@@ -41,8 +45,8 @@ ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/effective_care'
 ;
-DROP TABLE readmissions;
-CREATE EXTERNAL TABLE readmissions
+DROP TABLE staging.readmissions;
+CREATE EXTERNAL TABLE staging.readmissions
 (
 Provider_ID string,
 Hospital_Name string,
@@ -67,8 +71,8 @@ ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/readmissions'
 ;
-DROP TABLE measure_dates;
-CREATE EXTERNAL TABLE measure_dates
+DROP TABLE staging.measure_dates;
+CREATE EXTERNAL TABLE staging.measure_dates
 (
 Measure_Name string,
 Measure_ID string,
@@ -81,8 +85,8 @@ ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
 STORED AS TEXTFILE
 LOCATION '/user/w205/hospital_compare/measure_dates'
 ;
-DROP TABLE surveys_responses;
-CREATE EXTERNAL TABLE surveys_responses
+DROP TABLE staging.surveys_responses;
+CREATE EXTERNAL TABLE staging.surveys_responses
 (
 Provider_Number string,
 Hospital_Name string,
