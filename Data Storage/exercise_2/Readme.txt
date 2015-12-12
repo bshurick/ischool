@@ -2,7 +2,7 @@ Steps to Deploy Application
 1) Install pip and then install each of the dependencies listed above
 2) Install postgres and ensure server is running
 3) Execute ./ddls/run_ddls.sh to create Postgres database and word count table 
-4) Add the following lines to your ~/.bash_profile:
+4) Add the following lines to your ~/.bash_profile (and restart your bash session):
 	export TWITTER_KEY=[key]
 	export TWITTER_SECRET=[secret]
 	export TWITTER_OAUTH_TOKEN=[oauth token]
