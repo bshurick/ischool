@@ -1,20 +1,24 @@
 from __future__ import absolute_import, print_function, unicode_literals
 
 import itertools, time
-import tweepy, copy 
+import tweepy, copy, os
 import Queue, threading
 
 from streamparse.spout import Spout
-from credentials import CREDENTIALS
 
 ################################################################################
 # Twitter credentials
 ################################################################################
+TWITTER_KEY = os.getenv('TWITTER_KEY','')
+TWITTER_SECRET = os.getenv('TWITTER_SECRET','')
+TWITTER_OAUTH_TOKEN = os.getenv('TWITTER_OAUTH_TOKEN','')
+TWITTER_OAUTH_SECRET = os.getenv('TWITTER_OAUTH_SECRET','')
+
 twitter_credentials = {
-    "consumer_key"        :  CREDENTIALS['KEY'],
-    "consumer_secret"     :  CREDENTIALS['SECRET'],
-    "access_token"        :  CREDENTIALS['OAUTH_TOKEN'],
-    "access_token_secret" :  CREDENTIALS['OAUTH_SECRET'],
+    "consumer_key"        :  TWITTER_KEY,
+    "consumer_secret"     :  TWITTER_SECRET,
+    "access_token"        :  TWITTER_OAUTH_TOKEN,
+    "access_token_secret" :  TWITTER_OAUTH_SECRET,
 }
 
 def auth_get(auth_key):

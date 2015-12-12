@@ -6,7 +6,7 @@ import datetime as DT
 TBL='Tweetwordcount'
 DB='tcount'
 
-class TweetCounter(Bolt):
+class WordCounter(Bolt):
 	def initialize(self, conf, ctx):
 		self.counts = Counter()
 	
@@ -15,9 +15,8 @@ class TweetCounter(Bolt):
 		cur = conn.cursor()
 		cur.execute('''SELECT * from {}
 			WHERE word='{}' and day='{}';'''.format(
-				TBL, word, DT.datetime.now().strftime('%Y-%m-%d'))
-		x = cur.fetchone()
-		if x:
+				TBL, word, DT.datetime.now().strftime('%Y-%m-%d')))
+		if cur.fetchone():
 			SQL = '''UPDATE {}
 				SET cnt=cnt+1
 				WHERE word='{}'
