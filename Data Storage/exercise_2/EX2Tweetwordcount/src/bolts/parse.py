@@ -32,6 +32,9 @@ class ParseTweet(Bolt):
 
             # Filter out the urls
             if word.startswith("http"): continue
+            
+            # Filter out numbers
+            if re.search(r'[0-9]',word): continue
 
             # Strip leading and lagging punctuations
             aword = word.strip("\"?><,'.:;)")
