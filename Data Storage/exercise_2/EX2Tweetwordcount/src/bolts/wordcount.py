@@ -1,7 +1,7 @@
 from __future__ import absolute_import, print_function, unicode_literals
 from collections import Counter
 from streamparse.bolt import Bolt
-import psycopg2
+import re, psycopg2
 import datetime as DT
 TBL='Tweetwordcount'
 DB='tcount'
@@ -10,7 +10,7 @@ class WordCounter(Bolt):
 	def initialize(self, conf, ctx):
 		self.counts = Counter()
 	
-	def incrementPostgres(word):
+	def incrementPostgres(self, word):
 		conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 		cur = conn.cursor()
 		cur.execute('''SELECT * from {}
@@ -28,7 +28,7 @@ class WordCounter(Bolt):
 				(day, word, cnt)
 				VALUES ('{}','{}','{}');
 				'''.format(TBL,DT.datetime.now().strftime('%Y-%m-%d'),
-						word)
+						word, 1)
 		cur.execute(SQL)
 		conn.commit()
 		cur.close()
@@ -36,9 +36,9 @@ class WordCounter(Bolt):
 	
 	def process(self, tup):
 		word = tup.values[0]
-		word = word.lower()
+		word = re.sub(ur'[^\w+]','',word.lower(),flags=re.UNICODE)
 		
-		incrementPostgres(word)
+		self.incrementPostgres(word)
 		
 		# Increment the local count
 		self.counts[word] += 1
