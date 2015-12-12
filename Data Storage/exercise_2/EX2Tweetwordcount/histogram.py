@@ -2,24 +2,23 @@
 from __future__ import print_function
 import psycopg2, sys
 
-DB = 'Tcount'
+DB = 'tcount'
 TBL = 'Tweetwordcount'
 
 def get_hist(st,ed):
 	SQL = '''
 		SELECT word, cnt
-		FROM {db}.{tbl}
+		FROM {tbl}
 		WHERE cnt between {st} and {ed}
 		AND day={day}
 		;
 	'''.format(	
-		db=DB
-		,tbl=TBL
+		tbl=TBL
 		,day=DT.datetime.now().strftime('%Y-%m-%d')
 		,st=st
 		,ed=ed
 	)
-	conn = psycopg2.connect("user=postgres")
+	conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
         cur = conn.cursor()
         cur.execute(SQL)
         result = sorted(cur.fetchall(),lambda x: x[1],reverse=True)

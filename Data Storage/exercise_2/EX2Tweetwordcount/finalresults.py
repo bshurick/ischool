@@ -2,17 +2,17 @@
 from __future__ import print_function
 import psycopg2, sys
 
-DB = 'Tcount'
+DB = 'tcount'
 TBL = 'Tweetwordcount'
 
 def get_one_result(word):
 	SQL = '''
-		SELECT cnt FROM {db}.{tbl}
+		SELECT cnt FROM {tbl}
 		WHERE day={day}
 		AND word={word}
 		;
-	'''.format(db=DB,tbl=TBL,word=WORD,day=DT.datetime.now().strftime('%Y-%m-%d'))
-	conn = psycopg2.connect("user=postgres")
+	'''.format(tbl=TBL,word=WORD,day=DT.datetime.now().strftime('%Y-%m-%d'))
+	conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 	cur = conn.cursor()
 	cur.execute(SQL)
 	result = cur.fetchone()
@@ -24,11 +24,11 @@ def get_one_result(word):
 def get_more_results():
 	SQL = '''
 		SELECT word, cnt
-		FROM {db}.{tbl}
+		FROM {tbl}
 		WHERE day={day}
 		;
 	'''.format(db=DB,tbl=TBL,day=DT.datetime.now().strftime('%Y-%m-%d'))
-	conn = psycopg2.connect("user=postgres")
+	conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 	cur = conn.cursor()
 	cur.execute(SQL)
 	result = sorted(cur.fetchall(),lambda x: x[0])

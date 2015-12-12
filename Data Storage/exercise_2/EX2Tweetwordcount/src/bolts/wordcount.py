@@ -4,30 +4,31 @@ from streamparse.bolt import Bolt
 import psycopg2
 import datetime as DT
 TBL='Tweetwordcount'
-DB='Tcount'
+DB='tcount'
 
 class TweetCounter(Bolt):
 	def initialize(self, conf, ctx):
 		self.counts = Counter()
 	
 	def incrementPostgres(word):
-		conn = psycopg2.connect("user=postgres")
+		conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 		cur = conn.cursor()
-		cur.execute('''SELECT * from {}.{}
-			WHERE word='{}' and day='{}';'''.format(DB,
+		cur.execute('''SELECT * from {}
+			WHERE word='{}' and day='{}';'''.format(
 				TBL, word, DT.datetime.now().strftime('%Y-%m-%d'))
-		if cur.fetchone():
-			SQL = '''UPDATE {}.{}
+		x = cur.fetchone()
+		if x:
+			SQL = '''UPDATE {}
 				SET cnt=cnt+1
 				WHERE word='{}'
 				AND day='{}';
-			'''.format(DB,TBL,word,
+			'''.format(TBL,word,
 					DT.datetime.now().strftime('%Y-%m-%d'))
 		else:
-			SQL = '''INSERT INTO {}.{}
+			SQL = '''INSERT INTO {}
 				(day, word, cnt)
 				VALUES ('{}','{}','{}');
-				'''.format(DB,TBL,DT.datetime.now().strftime('%Y-%m-%d'),
+				'''.format(TBL,DT.datetime.now().strftime('%Y-%m-%d'),
 						word)
 		cur.execute(SQL)
 		conn.commit()
