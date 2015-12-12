@@ -35,7 +35,10 @@ class ParseTweet(Bolt):
             
             # Filter out numbers
             if re.search(r'[0-9]',word): continue
-
+            
+            # Filter out words with other characters
+            if re.search(r'[^\w+]',word): continue
+            
             # Strip leading and lagging punctuations
             aword = word.strip("\"?><,'.:;)")
 
