@@ -10,7 +10,7 @@ def get_one_result(word):
 	SQL = '''
 		SELECT cnt FROM {tbl}
 		WHERE day='{day}'
-		AND word={word}
+		AND word='{word}'
 		;
 	'''.format(tbl=TBL,word=word,day=DT.datetime.now().strftime('%Y-%m-%d'))
 	conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
@@ -19,7 +19,7 @@ def get_one_result(word):
 	result = cur.fetchone()
 	cur.close()
 	conn.close()
-	if result: return result
+	if result: return result[0]
 	else: return 0
 
 def get_more_results():
@@ -45,6 +45,4 @@ if __name__=='__main__':
 		print('Total number of occurences of "{}": {}'.format(word,get_one_result(word)))
 	if args_len==1:
 		print(', '.join([ '({},{})'.format(f[0],f[1]) for f in get_more_results() ]))
-	else:
-		raise Exception('No more than 1 argument')
 
