@@ -1694,7 +1694,7 @@ del pl_metaclass
 # In[13]:
 
 categorical_fields = categorical_fields + ['cid_prediction']
-pl = make_pipeline(categorical_fields)
+pl = make_pipeline(model_fields,categorical_fields)
 
 
 # In[14]:
