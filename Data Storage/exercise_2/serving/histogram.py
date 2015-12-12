@@ -11,11 +11,9 @@ def get_hist(st,ed):
 		SELECT word, cnt
 		FROM {tbl}
 		WHERE cnt between {st} and {ed}
-		AND day='{day}'
 		;
 	'''.format(	
 		tbl=TBL
-		,day=DT.datetime.now().strftime('%Y-%m-%d')
 		,st=st
 		,ed=ed
 	)

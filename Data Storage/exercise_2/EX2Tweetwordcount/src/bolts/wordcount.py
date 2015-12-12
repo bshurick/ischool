@@ -14,21 +14,20 @@ class WordCounter(Bolt):
 		conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 		cur = conn.cursor()
 		cur.execute('''SELECT * from {}
-			WHERE word='{}' and day='{}';'''.format(
-				TBL, word, DT.datetime.now().strftime('%Y-%m-%d')))
+			WHERE word='{}' 
+			;'''.format(
+				TBL, word ))
 		if cur.fetchone():
 			SQL = '''UPDATE {}
 				SET cnt=cnt+1
 				WHERE word='{}'
-				AND day='{}';
-			'''.format(TBL,word,
-					DT.datetime.now().strftime('%Y-%m-%d'))
+				;
+			'''.format(TBL,word)
 		else:
 			SQL = '''INSERT INTO {}
-				(day, word, cnt)
-				VALUES ('{}','{}','{}');
-				'''.format(TBL,DT.datetime.now().strftime('%Y-%m-%d'),
-						word, 1)
+				(word, cnt)
+				VALUES ('{}','{}');
+				'''.format(TBL, word, 1)
 		cur.execute(SQL)
 		conn.commit()
 		cur.close()

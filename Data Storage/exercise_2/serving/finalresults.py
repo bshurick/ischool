@@ -9,10 +9,9 @@ TBL = 'Tweetwordcount'
 def get_one_result(word):
 	SQL = '''
 		SELECT cnt FROM {tbl}
-		WHERE day='{day}'
-		AND word='{word}'
+		WHERE word='{word}'
 		;
-	'''.format(tbl=TBL,word=word,day=DT.datetime.now().strftime('%Y-%m-%d'))
+	'''.format(tbl=TBL,word=word)
 	conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 	cur = conn.cursor()
 	cur.execute(SQL)
@@ -26,9 +25,8 @@ def get_more_results():
 	SQL = '''
 		SELECT word, cnt
 		FROM {tbl}
-		WHERE day='{day}'
 		;
-	'''.format(db=DB,tbl=TBL,day=DT.datetime.now().strftime('%Y-%m-%d'))
+	'''.format(db=DB,tbl=TBL)
 	conn = psycopg2.connect("user=postgres dbname='{}'".format(DB))
 	cur = conn.cursor()
 	cur.execute(SQL)
