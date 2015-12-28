@@ -97,7 +97,7 @@ COUNTRIES_FILE = 'Data/countries.csv'
 SAMPLE_SUBMISSION_FILE = 'Data/sample_submission.csv'
 SESSIONS_FILE = 'Data/sessions.csv'
 TEST_DATA_FINAL_FILE = 'Data/test_users.csv'
-TRAIN_DATA_FILE = 'Data/train_users.csv'
+TRAIN_DATA_FILE = 'Data/train_users_2.csv'
 
 ## Model args ##
 TEST_N = 20000
@@ -461,19 +461,7 @@ merged = pd.merge(            sessions_new            , target            , how=
          )
 merged.head()
 
-
-# In[36]:
-
-merged.describe()
-
-
-# In[37]:
-
-np.max(np.array(merged)[:,:-1])
-
-
-# In[38]:
-
+'''
 ss = StandardScaler(with_mean=False)
 ii = Imputer(strategy='most_frequent')
 lda = LDA()
@@ -541,7 +529,6 @@ p = Pipeline([('mcl',mcl),('ii',ii),('mm',mm),('ss', ss)])
 lda = p.fit_transform(t[cols])
 lda_lm = lm.fit(lda,t['lda'])
 
-
 # #### Compile dataset
 
 # In[45]:
@@ -587,6 +574,7 @@ final_tst_lda = lda_lm.predict(final_tst_lda)
 #test_set['session_lda'] = tst_lda
 #final_test_set['session_lda'] = final_tst_lda
 
+'''
 
 # In[51]:
 
@@ -661,15 +649,15 @@ p_pred_i = lb.inverse_transform(p_pred)
 
 xgb = XGBClassifier(max_depth=6, learning_rate=0.3, n_estimators=25,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)      
-xgb.fit(l, cat_le)
+xgb.fit(train_set_new, cat_le)
 
-p_pred = xgb.predict(l_tst)
+p_pred = xgb.predict(test_set_new)
 p_pred_i = le.inverse_transform(p_pred)
 
 print(np.mean(p_pred_i == np.array(test_target)))
 print(classification_report(p_pred_i,np.array(test_target)))
 
-f_pred = xgb.predict_proba(final_l_tst)
+f_pred = xgb.predict_proba(final_test_set_new)
 
 f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(train_target)))
 f_pred_df.index = np.array(final_test_set['id'])
