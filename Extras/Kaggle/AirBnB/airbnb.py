@@ -270,8 +270,9 @@ for i,lm in enumerate(lms):
     train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
     lms[i] = lm
 
+
 # #### User data
-logging.warn('Process user data')
+logging.warn('Processing user data')
 
 train_set.index = train_set['id']
 test_set.index = test_set['id']
@@ -307,17 +308,6 @@ final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.y
 final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
 final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_created']
 
-
-# In[15]:
-
-train_set.head()
-
-
-# In[16]:
-
-train_set['days_to_first_booking'].value_counts()
-
-
 # In[17]:
 
 train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
@@ -332,175 +322,87 @@ final_test_set['days_to_first_booking'] =                 final_test_set['days_t
 
 # #### age buckets
 
-# In[18]:
-
-age_buckets.head()
-
-
-# In[19]:
-
-age_buckets['age_merge'] = (np.floor(                  np.array([int(re.split(r'[-+]',str(x))[0])                   for x in age_buckets['age_bucket']]            )/10)*10).astype('int')
-
-
-# In[20]:
-
-age_buckets.index = age_buckets['age_merge'].astype('string')             +'-'+age_buckets['country_destination']             +'-'+age_buckets['gender'].str.lower()
-
-
-# In[21]:
-
-for c in set(countries['country_destination']):
-    train_set['age_merge'+'-'+c] = (
-                        np.floor(\
-                            train_set['age']/10)*10\
-                        )\
-                            .fillna(0)\
-                            .astype('int')\
-                            .astype('string') \
-                        +'-'+c \
-                        +'-'+train_set['gender'].str.lower()
-    test_set['age_merge'+'-'+c] = (
-                        np.floor(\
-                            test_set['age']/10)*10\
-                        )\
-                            .fillna(0)\
-                            .astype('int')\
-                            .astype('string') \
-                        +'-'+c \
-                        +'-'+test_set['gender'].str.lower()
-    final_test_set['age_merge'+'-'+c] = (
-                        np.floor(\
-                            final_test_set['age']/10)*10\
-                        )\
-                            .fillna(0)\
-                            .astype('int')\
-                            .astype('string') \
-                        +'-'+c \
-                        +'-'+test_set['gender'].str.lower()
-
-
-# In[22]:
-
-age_buckets = age_buckets[[
-        'age_merge' \
-        ,'country_destination' \
-        ,'gender' \
-        ,'population_in_thousands']] \
-    .groupby(['age_merge','country_destination','gender']).sum()
-
-
-# In[23]:
-
-age_buckets.index = pd.Series([ str(i[0])+'-'+i[1]+'-'+i[2] for i in age_buckets.index])
-
-
-# In[24]:
-
-for c in set(countries['country_destination']):
-    train_set = pd.merge(
-        train_set \
-         , age_buckets \
-         , left_on=['age_merge'+'-'+c] \
-         , right_index=True \
-         , how='outer' \
-         , suffixes=(c,c)
-    )
-    test_set = pd.merge(
-        test_set \
-         , age_buckets \
-         , left_on=['age_merge'+'-'+c] \
-         , right_index=True \
-         , how='outer' \
-         , suffixes=(c,c)
-    )
-    final_test_set = pd.merge(
-        final_test_set \
-         , age_buckets \
-         , left_on=['age_merge'+'-'+c] \
-         , right_index=True \
-         , how='left' \
-         , suffixes=(c,c)
-    )
-print(train_set.shape)
-
-
-# In[25]:
-
-train_set = train_set.drop_duplicates(['id'])
-test_set = test_set.drop_duplicates(['id'])
-
-
-# In[26]:
-
-train_set['population_estimate'] = 0
-test_set['population_estimate'] = 0
-final_test_set['population_estimate'] = 0
-for c in set(countries['country_destination']):
-    try:
-        train_set.loc[:,'population_estimate'] =             train_set.loc[:,'population_estimate']            +np.nansum(train_set.loc[:,'population_in_thousands'+c]                       ,axis=1)
-        test_set.loc[:,'population_estimate'] =             test_set.loc[:,'population_estimate']            +np.nansum(test_set.loc[:,'population_in_thousands'+c]                       ,axis=1)
-        final_test_set.loc[:,'population_estimate'] =             final_test_set.loc[:,'population_estimate']            +np.nansum(final_test_set.loc[:,'population_in_thousands'+c]                       ,axis=1)
-    except KeyError:
-        pass
-
-cat_cols = [
-    'gender',
-    'signup_method',
-    'signup_flow',
-    'language',
-    'affiliate_channel',
-    'affiliate_provider',
-    'first_affiliate_tracked',
-    'signup_app',
-    'first_device_type',
-    'first_browser',
-    'year_created',
-    'month_created',
-    'year_first_booking' ,
-    'month_first_booking' ,
-]
-num_cols = [
-    'age',
-    'days_to_first_booking',
-    'population_estimate'
-]
-print(train_set[cat_cols + num_cols].shape)
-
-
-mcl = MultiColumnLabelEncoder()
-mm = MinMaxScaler()
-ohe = OneHotEncoder()
-ss = StandardScaler(with_mean=False)
-ii = Imputer(strategy='most_frequent')
-ii2 = Imputer(strategy='mean')
-p = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
-p2 = Pipeline([('ii',ii2)]) #,('ss',ss),('mm',mm)])
-
-
-# In[52]:
-
-z = p.fit_transform(train_set[cat_cols])
-zB = p2.fit_transform(train_set[num_cols]) #+['session_lda']])
-z2 = p.transform(test_set[cat_cols])
-z2B = p2.transform(test_set[num_cols]) #+['session_lda']])
-z3 = p.transform(final_test_set[cat_cols])
-z3B = p2.transform(final_test_set[num_cols]) #+['session_lda']])
-
-train_set_new = np.concatenate((z.todense(),zB),axis=1)
-test_set_new = np.concatenate((z2.todense(),z2B),axis=1)
-final_test_set_new = np.concatenate((z3.todense(),z3B),axis=1)
-
-
-# In[53]:
-
-print(train_set_new[:,:].shape)
-
-
-# In[54]:
-
-train_target = train_set['country_destination'].fillna('unknown')
-test_target = test_set['country_destination'].fillna('unknown')
-print(train_target.shape)
+# logging.warn('Processing age bucket data')
+# age_buckets['age_merge'] = (np.floor( \
+#     np.array([int(re.split(r'[-+]',str(x))[0]) \
+#         for x in age_buckets['age_bucket']] \
+#     )/10)*10).astype('int')
+#
+# age_buckets.index = age_buckets['age_merge'].astype('string') \
+#                                     +'-'+age_buckets['country_destination'] \
+#                                     +'-'+age_buckets['gender'].str.lower()
+#
+# for c in set(countries['country_destination']):
+#     train_set['age_merge'+'-'+c] = (
+#                         np.floor(\
+#                             train_set['age']/10)*10\
+#                         )\
+#                             .fillna(0)\
+#                             .astype('int')\
+#                             .astype('string') \
+#                         +'-'+c \
+#                         +'-'+train_set['gender'].str.lower()
+#     test_set['age_merge'+'-'+c] = (
+#                         np.floor(\
+#                             test_set['age']/10)*10\
+#                         )\
+#                             .fillna(0)\
+#                             .astype('int')\
+#                             .astype('string') \
+#                         +'-'+c \
+#                         +'-'+test_set['gender'].str.lower()
+#     final_test_set['age_merge'+'-'+c] = (
+#                         np.floor(\
+#                             final_test_set['age']/10)*10\
+#                         )\
+#                             .fillna(0)\
+#                             .astype('int')\
+#                             .astype('string') \
+#                         +'-'+c \
+#                         +'-'+test_set['gender'].str.lower()
+#
+# age_buckets = age_buckets[[
+#         'age_merge' \
+#         ,'country_destination' \
+#         ,'gender' \
+#         ,'population_in_thousands']] \
+#     .groupby(['age_merge','country_destination','gender']).sum()
+#
+# age_buckets.index = pd.Series([ str(i[0])+'-'+i[1]+'-'+i[2] for i in age_buckets.index])
+#
+# for c in set(countries['country_destination']):
+#     train_set = pd.merge(
+#         train_set \
+#          , age_buckets \
+#          , left_on=['age_merge'+'-'+c] \
+#          , right_index=True \
+#          , how='outer' \
+#          , suffixes=(c,c)
+#     )
+#     test_set = pd.merge(
+#         test_set \
+#          , age_buckets \
+#          , left_on=['age_merge'+'-'+c] \
+#          , right_index=True \
+#          , how='outer' \
+#          , suffixes=(c,c)
+#     )
+#     final_test_set = pd.merge(
+#         final_test_set \
+#          , age_buckets \
+#          , left_on=['age_merge'+'-'+c] \
+#          , right_index=True \
+#          , how='left' \
+#          , suffixes=(c,c)
+#     )
+#
+# train_set = train_set.drop_duplicates(['id'])
+# test_set = test_set.drop_duplicates(['id'])
+#
+#
+# train_target = train_set['country_destination'].fillna('unknown')
+# test_target = test_set['country_destination'].fillna('unknown')
+# print(train_target.shape)
 
 
 # In[55]:
