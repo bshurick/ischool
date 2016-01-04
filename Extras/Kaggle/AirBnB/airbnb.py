@@ -167,28 +167,20 @@ logging.warn('Loading data files')
 ## Read user data ##
 train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
 train_full = train_full.iloc[np.random.permutation(len(train_full))]
-train_set, train_target = train_full[TEST_N:][USER_COLUMNS+TARGET_COLUMN],    train_full[TEST_N:][TARGET_COLUMN]
-test_set, test_target = train_full[:TEST_N][USER_COLUMNS+TARGET_COLUMN],    train_full[:TEST_N][TARGET_COLUMN]
-
-
-# In[5]:
+train_set, train_target = train_full[TEST_N:][USER_COLUMNS+TARGET_COLUMN] \
+                                            , train_full[TEST_N:][TARGET_COLUMN]
+test_set, test_target = train_full[:TEST_N][USER_COLUMNS+TARGET_COLUMN] \
+                                            , train_full[:TEST_N][TARGET_COLUMN]
 
 ## Read in data to predict for submission ##
 final_test_set = pd.read_csv(TEST_DATA_FINAL_FILE)
-
-
-# In[6]:
 
 ## Read supplemental datasets ##
 countries = pd.read_csv(COUNTRIES_FILE)
 age_buckets = pd.read_csv(AGE_GENDER_BUCKETS_FILE)
 
-
-# In[7]:
-
 ## Read session data ##
 sessions = pd.read_csv(SESSIONS_FILE)
-
 
 # #### Sessions
 logging.warn('Processing session data model')
@@ -221,19 +213,19 @@ merged = pd.merge(\
             , right_index=True
          )
 
-# Extract most importance features
+## Extract most importance features ##
 abc = AdaBoostClassifier(learning_rate=0.1)
 abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
 fi = abc.feature_importances_
 features = np.argsort(fi)[::-1][:20]
 
-# Collapse into smaller feature set
+## Collapse into smaller feature set ##
 pca = PCA(n_components=4)
 pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
                             , index = sessions_new.index)
 logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
 
-# Create prediction model for features
+## Create prediction model for features ##
 tr_cat = train_set.loc[:,CAT_COLS]
 tr_cat.index = train_set['id']
 tr_num = train_set.loc[:,NUM_COLS]
@@ -290,7 +282,7 @@ train_set['year_first_booking'] = train_set['date_first_booking'].dt.year
 train_set['month_first_booking'] = train_set['date_first_booking'].dt.month
 train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_created']
 
-# repeat with test
+## repeat with test ##
 test_set['date_created'] = pd.to_datetime(test_set['date_account_created'])
 test_set['date_first_booking'] = pd.to_datetime(test_set['date_first_booking'])
 test_set['year_created'] = test_set['date_created'].dt.year
@@ -299,7 +291,7 @@ test_set['year_first_booking'] = test_set['date_first_booking'].dt.year
 test_set['month_first_booking'] = test_set['date_first_booking'].dt.month
 test_set['days_to_first_booking'] = test_set['date_first_booking']-test_set['date_created']
 
-# repeat with final test
+## repeat with final test ##
 final_test_set['date_created'] = pd.to_datetime(final_test_set['date_account_created'])
 final_test_set['date_first_booking'] = pd.to_datetime(final_test_set['date_first_booking'])
 final_test_set['year_created'] = final_test_set['date_created'].dt.year
@@ -307,8 +299,6 @@ final_test_set['month_created'] = final_test_set['date_created'].dt.month
 final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.year
 final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
 final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_created']
-
-# In[17]:
 
 train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
 train_set['days_to_first_booking'] =                 train_set['days_to_first_booking'].astype('timedelta64[D]')
@@ -404,23 +394,14 @@ final_test_set['days_to_first_booking'] =                 final_test_set['days_t
 # test_target = test_set['country_destination'].fillna('unknown')
 # print(train_target.shape)
 
-
-# In[55]:
-
-lda = LDA()
-l = lda.fit_transform(train_set_new, np.array(train_target))
-# l_tst = lda.transform(test_set_new)
-# final_l_tst = lda.transform(final_test_set_new)
-
-s = np.sum(lda.coef_**2,axis=0)
-s_sort = sorted(enumerate(s),key=lambda x: x[1],reverse=True)
-features = [i[0] for i in s_sort if i[1]>=min(sorted(s,reverse=True)[:30])]
+# s_sort = sorted(enumerate(s),key=lambda x: x[1],reverse=True)
+# features = [i[0] for i in s_sort if i[1]>=min(sorted(s,reverse=True)[:30])]
 
 le = LabelEncoder()
 cat_le = le.fit_transform(np.array(train_target))
 cat_tst_le = le.transform(np.array(test_target))
 
-'''
+'''3
 params_grid = {'learning_rate':[0.3,0.1,0.05,0.02,0.01]
 		, 'max_depth':[ 4, 6 ]}
 
