@@ -231,7 +231,7 @@ features = np.argsort(fi)[::-1][:20]
 pca = PCA(n_components=4)
 pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
                             , index = sessions_new.index)
-logging.warn(np.sum(pca.explained_variance_ratio_))
+logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
 
 # Create prediction model for features
 tr_cat = train_set.loc[:,CAT_COLS]
@@ -272,41 +272,14 @@ for i,lm in enumerate(lms):
 
 # #### User data
 logging.warn('Process user data')
-# In[8]:
-
-train_set.shape
-
-
-# In[9]:
-
-train_set.head()
-
-
-# In[10]:
 
 train_set.index = train_set['id']
 test_set.index = test_set['id']
 final_test_set.index = final_test_set['id']
 
-
-# In[11]:
-
-train_set['gender'].value_counts()
-
-
-# In[12]:
-
-train_set.head()
-
-
-# In[13]:
-
 train_set.loc[train_set['age']>115,['age']] = np.nan
 test_set.loc[test_set['age']>115,['age']] = np.nan
 final_test_set.loc[final_test_set['age']>115,['age']] = np.nan
-
-
-# In[14]:
 
 train_set['date_created'] = pd.to_datetime(train_set['date_account_created'])
 train_set['date_first_booking'] = pd.to_datetime(train_set['date_first_booking'])
