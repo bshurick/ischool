@@ -182,6 +182,53 @@ age_buckets = pd.read_csv(AGE_GENDER_BUCKETS_FILE)
 ## Read session data ##
 sessions = pd.read_csv(SESSIONS_FILE)
 
+# #### User data
+logging.warn('Processing user data')
+
+train_set.index = train_set['id']
+test_set.index = test_set['id']
+final_test_set.index = final_test_set['id']
+
+train_set.loc[train_set['age']>115,['age']] = np.nan
+test_set.loc[test_set['age']>115,['age']] = np.nan
+final_test_set.loc[final_test_set['age']>115,['age']] = np.nan
+
+train_set['date_created'] = pd.to_datetime(train_set['date_account_created'])
+train_set['date_first_booking'] = pd.to_datetime(train_set['date_first_booking'])
+train_set['year_created'] = train_set['date_created'].dt.year
+train_set['month_created'] = train_set['date_created'].dt.month
+train_set['year_first_booking'] = train_set['date_first_booking'].dt.year
+train_set['month_first_booking'] = train_set['date_first_booking'].dt.month
+train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_created']
+
+## repeat with test ##
+test_set['date_created'] = pd.to_datetime(test_set['date_account_created'])
+test_set['date_first_booking'] = pd.to_datetime(test_set['date_first_booking'])
+test_set['year_created'] = test_set['date_created'].dt.year
+test_set['month_created'] = test_set['date_created'].dt.month
+test_set['year_first_booking'] = test_set['date_first_booking'].dt.year
+test_set['month_first_booking'] = test_set['date_first_booking'].dt.month
+test_set['days_to_first_booking'] = test_set['date_first_booking']-test_set['date_created']
+
+## repeat with final test ##
+final_test_set['date_created'] = pd.to_datetime(final_test_set['date_account_created'])
+final_test_set['date_first_booking'] = pd.to_datetime(final_test_set['date_first_booking'])
+final_test_set['year_created'] = final_test_set['date_created'].dt.year
+final_test_set['month_created'] = final_test_set['date_created'].dt.month
+final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.year
+final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
+final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_created']
+
+train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
+train_set['days_to_first_booking'] =                 train_set['days_to_first_booking'].astype('timedelta64[D]')
+
+test_set.loc[test_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
+test_set['days_to_first_booking'] =                 test_set['days_to_first_booking'].astype('timedelta64[D]')
+
+final_test_set.loc[final_test_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
+final_test_set['days_to_first_booking'] =                 final_test_set['days_to_first_booking'].astype('timedelta64[D]')
+
+
 # #### Sessions
 logging.warn('Processing session data model')
 cf = ['action','action_type','action_detail','device_type']
@@ -281,55 +328,9 @@ merged_tst = pd.merge(test_set \
                         , left_index=True \
                         , right_index=True  )
 for i in range(components):
-    np.sqrt(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2))
-
-
-# #### User data
-logging.warn('Processing user data')
-
-train_set.index = train_set['id']
-test_set.index = test_set['id']
-final_test_set.index = final_test_set['id']
-
-train_set.loc[train_set['age']>115,['age']] = np.nan
-test_set.loc[test_set['age']>115,['age']] = np.nan
-final_test_set.loc[final_test_set['age']>115,['age']] = np.nan
-
-train_set['date_created'] = pd.to_datetime(train_set['date_account_created'])
-train_set['date_first_booking'] = pd.to_datetime(train_set['date_first_booking'])
-train_set['year_created'] = train_set['date_created'].dt.year
-train_set['month_created'] = train_set['date_created'].dt.month
-train_set['year_first_booking'] = train_set['date_first_booking'].dt.year
-train_set['month_first_booking'] = train_set['date_first_booking'].dt.month
-train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_created']
-
-## repeat with test ##
-test_set['date_created'] = pd.to_datetime(test_set['date_account_created'])
-test_set['date_first_booking'] = pd.to_datetime(test_set['date_first_booking'])
-test_set['year_created'] = test_set['date_created'].dt.year
-test_set['month_created'] = test_set['date_created'].dt.month
-test_set['year_first_booking'] = test_set['date_first_booking'].dt.year
-test_set['month_first_booking'] = test_set['date_first_booking'].dt.month
-test_set['days_to_first_booking'] = test_set['date_first_booking']-test_set['date_created']
-
-## repeat with final test ##
-final_test_set['date_created'] = pd.to_datetime(final_test_set['date_account_created'])
-final_test_set['date_first_booking'] = pd.to_datetime(final_test_set['date_first_booking'])
-final_test_set['year_created'] = final_test_set['date_created'].dt.year
-final_test_set['month_created'] = final_test_set['date_created'].dt.month
-final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.year
-final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
-final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_created']
-
-train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
-train_set['days_to_first_booking'] =                 train_set['days_to_first_booking'].astype('timedelta64[D]')
-
-test_set.loc[test_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
-test_set['days_to_first_booking'] =                 test_set['days_to_first_booking'].astype('timedelta64[D]')
-
-final_test_set.loc[final_test_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
-final_test_set['days_to_first_booking'] =                 final_test_set['days_to_first_booking'].astype('timedelta64[D]')
-
+    logger.warn('MSE {}: {}'.format(i \
+        , np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2)) \
+    ))
 
 # #### age buckets
 
