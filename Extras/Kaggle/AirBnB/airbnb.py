@@ -16,6 +16,8 @@ import datetime as DT
 import pandas as pd
 import numpy as np
 import re
+import logging
+logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(message)s')
 
 # Sklearn
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
@@ -135,11 +137,32 @@ AGE_BUCKET_COLUMNS = ['age_bucket',
  'population_in_thousands',
  'year']
 
+CAT_COLS = [
+    'gender',
+    'signup_method',
+    'signup_flow',
+    'language',
+    'affiliate_channel',
+    'affiliate_provider',
+    'first_affiliate_tracked',
+    'signup_app',
+    'first_device_type',
+    'first_browser',
+    'year_created',
+    'month_created',
+    'year_first_booking' ,
+    'month_first_booking' ,
+]
+NUM_COLS = [
+    'age',
+    'days_to_first_booking',
+    'population_estimate'
+]
 
 # ## Read data
 #
 
-# In[4]:
+logging.warn('Loading data files')
 
 ## Read user data ##
 train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
@@ -168,7 +191,7 @@ sessions = pd.read_csv(SESSIONS_FILE)
 
 
 # #### Sessions
-
+logging.warn('Processing session data model')
 cf = ['action','action_type','action_detail','device_type']
 s = sessions[cf].copy().fillna('missing')
 mcl = MultiColumnLabelEncoder()
@@ -208,33 +231,12 @@ features = np.argsort(fi)[::-1][:20]
 pca = PCA(n_components=4)
 pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
                             , index = sessions_new.index)
-print(np.sum(pca.explained_variance_ratio_))
+logging.warn(np.sum(pca.explained_variance_ratio_))
 
 # Create prediction model for features
-cat_cols = [
-    'gender',
-    'signup_method',
-    'signup_flow',
-    'language',
-    'affiliate_channel',
-    'affiliate_provider',
-    'first_affiliate_tracked',
-    'signup_app',
-    'first_device_type',
-    'first_browser',
-    'year_created',
-    'month_created',
-    'year_first_booking' ,
-    'month_first_booking' ,
-]
-num_cols = [
-    'age',
-    'days_to_first_booking',
-    'population_estimate'
-]
-tr_cat = train_set.loc[:,cat_cols]
+tr_cat = train_set.loc[:,CAT_COLS]
 tr_cat.index = train_set['id']
-tr_num = train_set.loc[:,num_cols]
+tr_num = train_set.loc[:,NUM_COLS]
 tr_num.index = train_set['id']
 merged_cats = pd.merge(tr_cat \
                         , pca_features \
@@ -269,7 +271,7 @@ for i,lm in enumerate(lms):
     lms[i] = lm
 
 # #### User data
-
+logging.warn('Process user data')
 # In[8]:
 
 train_set.shape
