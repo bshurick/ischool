@@ -220,7 +220,8 @@ fi = abc.feature_importances_
 features = np.argsort(fi)[::-1][:20]
 
 ## Collapse into smaller feature set ##
-pca = PCA(n_components=4)
+components = 4
+pca = PCA(n_components=components)
 pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
                             , index = sessions_new.index)
 logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
@@ -252,7 +253,7 @@ ohe = OneHotEncoder()
 ss = StandardScaler(with_mean=False)
 ii = Imputer(strategy='most_frequent')
 ii2 = Imputer(strategy='mean')
-lms = [ LinearRegression() for l in np.arange(pca_features.shape[1]) ]
+lms = [ LinearRegression() for l in np.arange(components) ]
 p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
 p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
 
@@ -260,19 +261,27 @@ trcat_transformed = p1.fit_transform(tr_cat).todense()
 trnum_transformed = p2.fit_transform(tr_num)
 trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
 
-tstcat_transformed = p1.fit_transform(tst_cat).todense()
-tstnum_transformed = p2.fit_transform(tst_num)
+tstcat_transformed = p1.transform(tst_cat).todense()
+tstnum_transformed = p2.transform(tst_num)
 tstcombined = np.concatenate((tstcat_transformed, tstnum_transformed), axis=1)
 
-mcat_transformed = p1.transform(merged_cats.iloc[:,:-4]).todense()
-mnum_transformed = p2.transform(merged_nums.iloc[:,:-4])
+mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
+mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
 mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
 
 for i,lm in enumerate(lms):
     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
     train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
-    test_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
+    test_set.loc[:,'pca_'+str(i)] = lm.predict(tstcombined)
     lms[i] = lm
+
+merged_tst = pd.merge(test_set \
+                        , pca_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+for i in range(components):
+    np.sqrt(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2))
 
 
 # #### User data
