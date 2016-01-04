@@ -3,7 +3,7 @@
 
 # AirBnB recruiting kaggle
 # ------
-# 
+#
 # https://www.kaggle.com/c/airbnb-recruiting-new-user-bookings
 
 # ## Load libraries
@@ -19,12 +19,12 @@ import re
 
 # Sklearn
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from sklearn.discriminant_analysis     import LinearDiscriminantAnalysis as LDA            , QuadraticDiscriminantAnalysis as QDA
 from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import AdaBoostClassifier
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report
@@ -40,10 +40,12 @@ from keras.layers.advanced_activations import PReLU
 # XGBoost
 from xgboost.sklearn import XGBClassifier
 
-# matplotlib 
+# matplotlib
 import matplotlib.pyplot as plt
 #get_ipython().magic(u'matplotlib inline')
 
+# Grid Search
+from sklearn.grid_search import GridSearchCV
 
 # In[2]:
 
@@ -56,7 +58,7 @@ class MultiColumnLabelEncoder:
 
     def fit(self,X,y=None):
         return self # not relevant here
-    
+
     def get_params(self, deep=True):
         out = dict()
         if self.columns: out['columns'] = columns
@@ -65,12 +67,12 @@ class MultiColumnLabelEncoder:
     def transform(self,X):
         '''
         Transforms columns of X specified in self.columns using
-        LabelEncoder(). 
+        LabelEncoder().
         '''
         numerics = [np.float16, np.float32, np.float64]
         ints = [np.int16, np.int32, np.int64]
         output = X.copy()
-        
+
         for colname,col in output.iteritems():
             if col.dtype not in numerics+ints:
                 # Turn text columns into ints
@@ -78,7 +80,7 @@ class MultiColumnLabelEncoder:
             elif col.dtype in numerics:
                 # handle floats with scaling
                 # output[colname] = scale(output[colname])
-                pass 
+                pass
             elif col.dtype in ints:
                 pass # leave integers alone
         return output
@@ -91,7 +93,7 @@ class MultiColumnLabelEncoder:
 
 # In[3]:
 
-## Files ## 
+## Files ##
 AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
 COUNTRIES_FILE = 'Data/countries.csv'
 SAMPLE_SUBMISSION_FILE = 'Data/sample_submission.csv'
@@ -102,7 +104,7 @@ TRAIN_DATA_FILE = 'Data/train_users_2.csv'
 ## Model args ##
 TEST_N = 20000
 
-## Fields ## 
+## Fields ##
 USER_COLUMNS = ['id',
  'date_account_created',
  'timestamp_first_active',
@@ -135,12 +137,13 @@ AGE_BUCKET_COLUMNS = ['age_bucket',
 
 
 # ## Read data
-# 
+#
 
 # In[4]:
 
-## Read user data ## 
+## Read user data ##
 train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
+train_full = train_full.iloc[np.random.permutation(len(train_full))]
 train_set, train_target = train_full[TEST_N:][USER_COLUMNS+TARGET_COLUMN],    train_full[TEST_N:][TARGET_COLUMN]
 test_set, test_target = train_full[:TEST_N][USER_COLUMNS+TARGET_COLUMN],    train_full[:TEST_N][TARGET_COLUMN]
 
@@ -153,7 +156,7 @@ final_test_set = pd.read_csv(TEST_DATA_FINAL_FILE)
 
 # In[6]:
 
-## Read supplemental datasets ## 
+## Read supplemental datasets ##
 countries = pd.read_csv(COUNTRIES_FILE)
 age_buckets = pd.read_csv(AGE_GENDER_BUCKETS_FILE)
 
@@ -165,6 +168,105 @@ sessions = pd.read_csv(SESSIONS_FILE)
 
 
 # #### Sessions
+
+cf = ['action','action_type','action_detail','device_type']
+s = sessions[cf].copy().fillna('missing')
+mcl = MultiColumnLabelEncoder()
+ohe = OneHotEncoder()
+x = ohe.fit_transform(
+    mcl.fit_transform(s)
+)
+n = x.shape[1]//50
+
+def minimize_df(i,lim,n,nparr):
+    m = min(lim,(i+1)*n)
+    return pd.DataFrame(nparr[:,i*n:m].toarray() \
+                ,index=sessions['user_id']) \
+                .groupby(level=0).sum()
+
+z = ( minimize_df(y,x.shape[1],50,x) for y in range(n+1) )
+
+sessions_new = pd.concat(z,axis=1)
+
+target = pd.DataFrame({'country_destination':train_set['country_destination']})
+target.index = train_set['id']
+merged = pd.merge(\
+            sessions_new\
+            , target\
+            , how='inner'\
+            , left_index=True
+            , right_index=True
+         )
+
+# Extract most importance features
+abc = AdaBoostClassifier(learning_rate=0.1)
+abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
+fi = abc.feature_importances_
+features = np.argsort(fi)[::-1][:20]
+
+# Collapse into smaller feature set
+pca = PCA(n_components=4)
+pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
+                            , index = sessions_new.index)
+print(np.sum(pca.explained_variance_ratio_))
+
+# Create prediction model for features
+cat_cols = [
+    'gender',
+    'signup_method',
+    'signup_flow',
+    'language',
+    'affiliate_channel',
+    'affiliate_provider',
+    'first_affiliate_tracked',
+    'signup_app',
+    'first_device_type',
+    'first_browser',
+    'year_created',
+    'month_created',
+    'year_first_booking' ,
+    'month_first_booking' ,
+]
+num_cols = [
+    'age',
+    'days_to_first_booking',
+    'population_estimate'
+]
+tr_cat = train_set.loc[:,cat_cols]
+tr_cat.index = train_set['id']
+tr_num = train_set.loc[:,num_cols]
+tr_num.index = train_set['id']
+merged_cats = pd.merge(tr_cat \
+                        , pca_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+merged_nums = pd.merge(tr_num \
+                        , pca_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+mcl = MultiColumnLabelEncoder()
+mm = MinMaxScaler()
+ohe = OneHotEncoder()
+ss = StandardScaler(with_mean=False)
+ii = Imputer(strategy='most_frequent')
+ii2 = Imputer(strategy='mean')
+lms = [ LinearRegression() for l in np.arange(pca_features.shape[1]) ]
+p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
+
+trcat_transformed = p1.fit_transform(tr_cat).todense()
+trnum_transformed = p2.fit_transform(tr_num)
+trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
+mcat_transformed = p1.transform(merged_cats.iloc[:,:-4]).todense()
+mnum_transformed = p2.transform(merged_nums.iloc[:,:-4])
+mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
+
+for i,lm in enumerate(lms):
+    lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+    train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
+    lms[i] = lm
 
 # #### User data
 
@@ -212,7 +314,7 @@ train_set['year_first_booking'] = train_set['date_first_booking'].dt.year
 train_set['month_first_booking'] = train_set['date_first_booking'].dt.month
 train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_created']
 
-# repeat with test 
+# repeat with test
 test_set['date_created'] = pd.to_datetime(test_set['date_account_created'])
 test_set['date_first_booking'] = pd.to_datetime(test_set['date_first_booking'])
 test_set['year_created'] = test_set['date_created'].dt.year
@@ -366,176 +468,9 @@ for c in set(countries['country_destination']):
     except KeyError:
         pass
 
-
-# #### Add country features
-
-# In[27]:
-
-countries
-
-
-# In[28]:
-
-set(train_set['language'])
-
-
-# #### Add session data
-
-# In[29]:
-
-sessions.shape
-
-
-# In[30]:
-
-sessions.head()
-
-
-# In[31]:
-
-cf = ['action','action_type','action_detail','device_type']
-s = sessions[cf].copy().fillna('missing')
-mcl = MultiColumnLabelEncoder()
-ohe = OneHotEncoder()
-x = ohe.fit_transform(
-    mcl.fit_transform(s)
-).todense()
-
-
-# In[32]:
-
-try:
-    sessions_new = pd.read_csv('Data/sessions_new.csv',index_col=0)
-except IOError:
-    sessions_new = []
-
-
-# In[33]:
-
-run = True if len(sessions_new)==0 else False
-
-
-# In[34]:
-
-if run:
-    n = 100
-    loops = sessions.shape[0]//n*np.arange(n)
-
-    o = []
-    start_time = DT.datetime.now()
-    for i,l in enumerate(loops):
-        try:
-            a,b = loops[i],loops[i+1]
-        except:
-            a,b = loops[i],sessions.shape[0]
-
-        sessions_new = pd.DataFrame(np.concatenate(            (
-                sessions[['user_id']][a:b]\
-                , x[a:b]\
-                , sessions[['secs_elapsed']][a:b]
-            )
-            , axis=1
-        ))
-        sessions_grouped = sessions_new.groupby([0]).sum()
-        o.append(sessions_grouped)
-
-        if i%10==0:
-            this_time = DT.datetime.now()
-            time_change = (this_time - start_time).seconds
-            per_second = b*1.0 / (time_change)
-            total_time = sessions.shape[0] / per_second / 60
-            pct = b*1.0 / sessions.shape[0]
-            print('finished {}%, {} mins est. time remaining'                    .format(round(pct*100,2)                            ,(1-pct)*total_time))
-    sessions_new = pd.concat(o,ignore_index=True)
-    sessions_new['user_id'] = pd.concat(o).index
-    sessions_new = sessions_new.groupby('user_id').sum()
-    sessions_new.to_csv('Data/sessions_new.csv',index=True,header=True)
-
-
-# In[35]:
-
-target = pd.DataFrame({'country_destination':train_set['country_destination']})
-target.index = train_set['id']
-merged = pd.merge(            sessions_new            , target            , how='inner'            , left_index=True
-            , right_index=True
-         )
-merged.head()
-
-'''
-ss = StandardScaler(with_mean=False)
-ii = Imputer(strategy='most_frequent')
-lda = LDA()
-p = Pipeline([('ii',ii),('ss', ss)])
-merged_new = p.fit_transform(np.array(merged)[:,:-1])
-l = lda.fit_transform(merged_new, np.array(merged)[:,-1:])
-
-
-# In[39]:
-
-sessions_lda = pd.DataFrame(l                            ,index=merged.index                            ,columns=[ 'lda_'+str(i)                                       for i in range(l.shape[1]) ])
-
-
-# In[40]:
-
-sessions_lda.head()
-
-
-# In[41]:
-
-pca = PCA(n_components=1)
-p = pca.fit_transform(sessions_lda)
-
-
-# In[42]:
-
-t = pd.merge(            train_set            , pd.DataFrame({'lda':p[:,0]},index=sessions_lda.index)            , how='inner'            , left_index=True
-            , right_index=True
-    )
-
-
-# In[48]:
-
-cols = [
- 'gender',
- 'age',
- #'signup_method',
- 'signup_flow',
- 'language',
- 'affiliate_channel',
- 'affiliate_provider',
- 'first_affiliate_tracked',
- 'signup_app',
- 'first_device_type',
- 'first_browser',
- 'year_created' ,
- 'month_created' ,
- 'year_first_booking' ,
- 'month_first_booking' ,
- 'days_to_first_booking',
- 'population_estimate'
-]
-t[cols+['lda']].head()
-
-
-# In[49]:
-
-lm = LinearRegression()
-mcl = MultiColumnLabelEncoder()
-mm = MinMaxScaler()
-ohe = OneHotEncoder()
-ss = StandardScaler(with_mean=False)
-ii = Imputer(strategy='most_frequent')
-p = Pipeline([('mcl',mcl),('ii',ii),('mm',mm),('ss', ss)])
-lda = p.fit_transform(t[cols])
-lda_lm = lm.fit(lda,t['lda'])
-
-# #### Compile dataset
-
-# In[45]:
-
 cat_cols = [
     'gender',
-    #'signup_method',
+    'signup_method',
     'signup_flow',
     'language',
     'affiliate_channel',
@@ -552,31 +487,10 @@ cat_cols = [
 num_cols = [
     'age',
     'days_to_first_booking',
-    'population_estimate' 
+    'population_estimate'
 ]
 print(train_set[cat_cols + num_cols].shape)
 
-
-# In[46]:
-
-train_set[cat_cols+num_cols].head()
-
-
-# In[50]:
-
-tr_lda = p.fit_transform(train_set[cat_cols+num_cols])
-tst_lda = p.transform(test_set[cat_cols+num_cols])
-final_tst_lda = p.transform(final_test_set[cat_cols+num_cols])
-lda = lda_lm.predict(tr_lda)
-tst_lda = lda_lm.predict(tst_lda)
-final_tst_lda = lda_lm.predict(final_tst_lda)
-#train_set['session_lda'] = lda
-#test_set['session_lda'] = tst_lda
-#final_test_set['session_lda'] = final_tst_lda
-
-'''
-
-# In[51]:
 
 mcl = MultiColumnLabelEncoder()
 mm = MinMaxScaler()
@@ -616,41 +530,31 @@ print(train_target.shape)
 
 # In[55]:
 
-lda = LDA(n_components=6)
+lda = LDA()
 l = lda.fit_transform(train_set_new, np.array(train_target))
-l_tst = lda.transform(test_set_new)
-final_l_tst = lda.transform(final_test_set_new)
+# l_tst = lda.transform(test_set_new)
+# final_l_tst = lda.transform(final_test_set_new)
 
-lb = LabelBinarizer()
-cat = lb.fit_transform(np.array(train_target))
-cat_tst = lb.transform(np.array(test_target))
+s = np.sum(lda.coef_**2,axis=0)
+s_sort = sorted(enumerate(s),key=lambda x: x[1],reverse=True)
+features = [i[0] for i in s_sort if i[1]>=min(sorted(s,reverse=True)[:30])]
 
 le = LabelEncoder()
 cat_le = le.fit_transform(np.array(train_target))
 cat_tst_le = le.transform(np.array(test_target))
 
-
 '''
-n = l.shape[1]
-nn = Sequential()
-nn.add(GaussianDropout(0.3))
-nn.add(Dense(input_dim=n, output_dim=32, init="uniform"))
-nn.add(Activation("tanh"))
-nn.add(PReLU((32,)))
-nn.add(Dropout(0.3))
-nn.add(Dense(input_dim=32, output_dim=13, init="glorot_uniform"))
-nn.add(Activation("softmax"))
-nn.compile(loss='categorical_crossentropy', optimizer='sgd')
-nn.fit(l, cat, nb_epoch=10)
+params_grid = {'learning_rate':[0.3,0.1,0.05,0.02,0.01]
+		, 'max_depth':[ 4, 6 ]}
 
-p_pred = nn.predict(l_tst)
-p_pred_i = lb.inverse_transform(p_pred)
+xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
+gs_csv = GridSearchCV(xgb, params_grid).fit(train_set_new, cat_le)
+print(gs_csv.best_params_)
 '''
 
-xgb = XGBClassifier(max_depth=6, learning_rate=0.3, n_estimators=25,
-                    objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)      
-xgb.fit(train_set_new, cat_le)
-
+xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
+                    objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
+xgb.fit(np.concatenate([train_set_new,test_set_new]), np.concatenate([cat_le,cat_tst_le]))
 p_pred = xgb.predict(test_set_new)
 p_pred_i = le.inverse_transform(p_pred)
 
@@ -668,4 +572,3 @@ s2.columns = ['country','id','score']
 r = s2.groupby(['id'])['score'].rank(ascending=False)
 s3 = s2[r<=5]
 s3[['id','country','score']].to_csv('Data/submission.csv',index=False)
-
