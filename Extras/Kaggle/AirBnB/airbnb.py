@@ -139,7 +139,7 @@ AGE_BUCKET_COLUMNS = ['age_bucket',
 
 CAT_COLS = [
     'gender',
-    'signup_method',
+    'signup_method', # New method weibo in final test data
     'signup_flow',
     'language',
     'affiliate_channel',
@@ -192,6 +192,7 @@ train_set.loc[train_set['age']>115,['age']] = np.nan
 test_set.loc[test_set['age']>115,['age']] = np.nan
 final_test_set.loc[final_test_set['age']>115,['age']] = np.nan
 
+## add new date features ##
 train_set['date_created'] = pd.to_datetime(train_set['date_account_created'])
 train_set['date_first_booking'] = pd.to_datetime(train_set['date_first_booking'])
 train_set['year_created'] = train_set['date_created'].dt.year
@@ -218,15 +219,25 @@ final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.y
 final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
 final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_created']
 
-train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
-train_set['days_to_first_booking'] =                 train_set['days_to_first_booking'].astype('timedelta64[D]')
+## add new date features ##
+train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0) \
+                    ,['days_to_first_booking']] = np.nan
+train_set['days_to_first_booking'] = \
+                    train_set['days_to_first_booking'].astype('timedelta64[D]')
 
-test_set.loc[test_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
-test_set['days_to_first_booking'] =                 test_set['days_to_first_booking'].astype('timedelta64[D]')
+test_set.loc[test_set['days_to_first_booking']<pd.Timedelta(0)\
+                    ,['days_to_first_booking']] = np.nan
+test_set['days_to_first_booking'] = \
+                    test_set['days_to_first_booking'].astype('timedelta64[D]')
 
-final_test_set.loc[final_test_set['days_to_first_booking']<pd.Timedelta(0)              ,['days_to_first_booking']] = np.nan
-final_test_set['days_to_first_booking'] =                 final_test_set['days_to_first_booking'].astype('timedelta64[D]')
+final_test_set.loc[final_test_set['days_to_first_booking']<pd.Timedelta(0) \
+                    ,['days_to_first_booking']] = np.nan
+final_test_set['days_to_first_booking'] = \
+                    final_test_set['days_to_first_booking'].astype('timedelta64[D]')
 
+## Choose random record in training data to assign 'weibo' signup method ##
+## This avoids issues later with one hot encoding ##
+train_set.loc[train_set.iloc[22]['id'],['signup_method']] = 'weibo'
 
 # #### Sessions
 logging.warn('Processing session data model')
@@ -248,121 +259,132 @@ def minimize_df(i,lim,n,nparr):
 z = ( minimize_df(y,x.shape[1],50,x) for y in range(n+1) )
 
 sessions_new = pd.concat(z,axis=1)
+sessions_new = sessions_new.fillna(0)
+sessions_new.columns = [ 'session_'+str(i) for i in range(len(sessions_new.columns) ]
 
-target = pd.DataFrame({'country_destination':train_set['country_destination']})
-target.index = train_set['id']
-merged = pd.merge(\
-            sessions_new\
-            , target\
-            , how='inner'\
-            , left_index=True
-            , right_index=True
-         )
+train_set = pd.merge(train_set, sessions_new, how='left', left_index=True, right_index=True)
+test_set = pd.merge(test_set, sessions_new, how='left', left_index=True, right_index=True)
+final_test_set = pd.merge(final_test_set, sessions_new, how='left', left_index=True, right_index=True)
 
-## Extract most importance features ##
-logging.warn('Extracting meaningful features')
-abc = AdaBoostClassifier(learning_rate=0.1)
-abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
-fi = abc.feature_importances_
-features = np.argsort(fi)[::-1][:10]
-
-## Collapse into smaller feature set ##
-components = 10
-logging.warn('Collapsing feature set using PCA')
-pca = PCA(n_components=components)
-pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
-                            , index = sessions_new.index)
-logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
-pca_features = sessions_new.iloc[:,features]
-pca_features.columns = range(components)
-
-## Create prediction model for features ##
-logging.warn('Creating regression model for session features')
-tr_cat = train_set.loc[:,CAT_COLS]
-tr_cat.index = train_set['id']
-tr_num = train_set.loc[:,NUM_COLS]
-tr_num.index = train_set['id']
-
-tst_cat = test_set.loc[:,CAT_COLS]
-tst_cat.index = test_set['id']
-tst_num = test_set.loc[:,NUM_COLS]
-tst_num.index = test_set['id']
-
-merged_cats = pd.merge(tr_cat \
-                        , pca_features \
-                        , how='inner' \
-                        , left_index=True \
-                        , right_index=True  )
-merged_nums = pd.merge(tr_num \
-                        , pca_features \
-                        , how='inner' \
-                        , left_index=True \
-                        , right_index=True  )
-merged_cats_tst = pd.merge(tst_cat \
-                        , pca_features \
-                        , how='inner' \
-                        , left_index=True \
-                        , right_index=True  )
-merged_nums_tst = pd.merge(tst_num \
-                        , pca_features \
-                        , how='inner' \
-                        , left_index=True \
-                        , right_index=True  )
-
-mcl = MultiColumnLabelEncoder()
-mm = MinMaxScaler()
-ohe = OneHotEncoder()
-ss = StandardScaler(with_mean=False)
-ii = Imputer(strategy='most_frequent')
-ii2 = Imputer(strategy='mean')
-p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
-p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
-
-trcat_transformed = p1.fit_transform(tr_cat).todense()
-trnum_transformed = p2.fit_transform(tr_num)
-trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
-
-tstcat_transformed = p1.transform(tst_cat).todense()
-tstnum_transformed = p2.transform(tst_num)
-tstcombined = np.concatenate((tstcat_transformed, tstnum_transformed), axis=1)
-
-mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
-mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
-mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
-
-lm_cvs = [ ElasticNetCV( \
-            l1_ratio=[.1, .5, .7, .9, .95, .99, 1] \
-            , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
-            , max_iter=5000, n_jobs=2
-        ) \
-        for l in np.arange(components) ]
-for i,lm in enumerate(lm_cvs):
-    lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
-
-for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
-lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
-            for l in lm_cvs ]
-
-for i,lm in enumerate(lms):
-    lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
-    train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
-    test_set.loc[:,'pca_'+str(i)] = lm.predict(tstcombined)
-    lms[i] = lm
-
-merged_tst = pd.merge(test_set \
-                        , pca_features \
-                        , how='inner' \
-                        , left_index=True \
-                        , right_index=True  )
-for i in range(components):
-    logging.warn('MSE {}: {}'.format(i \
-        , np.sqrt(np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2))) \
-    ))
-    # train_set.loc[merged_nums.index,'pca_'+str(i)] = merged_nums[i]
-    # test_set.loc[merged_nums_tst.index,'pca_'+str(i)] = merged_nums_tst[i]
-
-## Withhold new features for now ##
-NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
+# target = pd.DataFrame({'country_destination':train_set['country_destination']})
+# target.index = train_set['id']
+# merged = pd.merge(\
+#             sessions_new\
+#             , target\
+#             , how='left'\
+#             , left_index=True
+#             , right_index=True
+#          )
+#
+# ## Extract most importance features ##
+# logging.warn('Extracting meaningful features')
+# abc = AdaBoostClassifier(learning_rate=0.1)
+# abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
+# fi = abc.feature_importances_
+# features = np.argsort(fi)[::-1][:100]
+#
+# ## Collapse into smaller feature set ##
+# components = 100
+# logging.warn('Collapsing feature set using PCA')
+# # pca = PCA(n_components=components)
+# # pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
+# #                             , index = sessions_new.index)
+# # logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
+# pca_features = sessions_new.iloc[:,features]
+# pca_features.columns = range(components)
+#
+# ## Create prediction model for features ##
+# logging.warn('Creating regression model for session features')
+#
+# ## Split out category and numeric columns ##
+# tr_cat = train_set.loc[:,CAT_COLS]
+# tr_cat.index = train_set['id']
+# tr_num = train_set.loc[:,NUM_COLS]
+# tr_num.index = train_set['id']
+#
+# tst_cat = test_set.loc[:,CAT_COLS]
+# tst_cat.index = test_set['id']
+# tst_num = test_set.loc[:,NUM_COLS]
+# tst_num.index = test_set['id']
+#
+# final_tst_cat = final_test_set.loc[:,CAT_COLS]
+# final_tst_cat.index = final_test_set['id']
+# final_tst_num = final_test_set.loc[:,NUM_COLS]
+# final_tst_num.index = final_test_set['id']
+#
+# ## Merge with new features ##
+# merged_cats = pd.merge(tr_cat \
+#                         , pca_features \
+#                         , how='inner' \
+#                         , left_index=True \
+#                         , right_index=True  )
+# merged_nums = pd.merge(tr_num \
+#                         , pca_features \
+#                         , how='inner' \
+#                         , left_index=True \
+#                         , right_index=True  )
+#
+# ## Prepare data for regression modeling ##
+# mcl = MultiColumnLabelEncoder()
+# mm = MinMaxScaler()
+# ohe = OneHotEncoder()
+# ss = StandardScaler(with_mean=False)
+# ii = Imputer(strategy='most_frequent')
+# ii2 = Imputer(strategy='mean')
+# p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+# p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
+#
+# trcat_transformed = p1.fit_transform(tr_cat).todense()
+# trnum_transformed = p2.fit_transform(tr_num)
+# trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
+#
+# tstcat_transformed = p1.transform(tst_cat).todense()
+# tstnum_transformed = p2.transform(tst_num)
+# tstcombined = np.concatenate((tstcat_transformed, tstnum_transformed), axis=1)
+#
+# tstcat_final_transformed = p1.transform(final_tst_cat).todense()
+# tstnum_final_transformed = p2.transform(final_tst_num)
+# tstcombined_final = np.concatenate((tstcat_final_transformed, tstnum_final_transformed), axis=1)
+#
+# mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
+# mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
+# mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
+#
+# lm_cvs = [ ElasticNetCV( \
+#             l1_ratio=[.1, .5, .7, .9, .95, .99, 1] \
+#             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
+#             , max_iter=5000, n_jobs=2
+#         ) \
+#         for l in np.arange(components) ]
+# for i,lm in enumerate(lm_cvs):
+#     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+#
+# for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
+# lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+#             for l in lm_cvs ]
+#
+# for i,lm in enumerate(lms):
+#     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+#     train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
+#     test_set.loc[:,'pca_'+str(i)] = lm.predict(tstcombined)
+#     final_test_set.loc[:,'pca_'+str(i)] = lm.predict(tstcombined_final)
+#     lms[i] = lm
+#
+# merged_tst = pd.merge(test_set \
+#                         , pca_features \
+#                         , how='inner' \
+#                         , left_index=True \
+#                         , right_index=True  )
+# for i in range(components):
+#     logging.warn('MSE {}: {}'.format(i \
+#         , np.sqrt(np.mean(np.sum(((merged_tst['pca_'+str(i)] \
+#                             - merged_tst[i])/merged_tst[i])**2))) \
+#     ))
+#     # train_set.loc[merged_nums.index,'pca_'+str(i)] = merged_nums[i]
+#     # test_set.loc[merged_nums_tst.index,'pca_'+str(i)] = merged_nums_tst[i]
+#
+# ## Withhold new features for now ##
+# NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
 
 # #### age buckets
 
@@ -451,11 +473,13 @@ NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
 # s_sort = sorted(enumerate(s),key=lambda x: x[1],reverse=True)
 # features = [i[0] for i in s_sort if i[1]>=min(sorted(s,reverse=True)[:30])]
 
+
+
 logging.warn('Create boosted trees model with training data')
 ## Encode categories ##
 le = LabelEncoder()
-cat_le = le.fit_transform(np.array(train_target))
-cat_tst_le = le.transform(np.array(test_target))
+cat_le = le.fit_transform(np.array(train_target).ravel())
+cat_tst_le = le.transform(np.array(test_target).ravel())
 
 mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
 im2 = Imputer(strategy='mean')
@@ -468,24 +492,38 @@ xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', subsample=0.5, 
 gs_csv = GridSearchCV(xgb, params_grid).fit(train_set_new, cat_le)
 print(gs_csv.best_params_)
 '''
-## Run model with only training data ##
+
+## Set up X,Y data for modeling ##
 X_1 = np.concatenate((p.fit_transform(train_set[CAT_COLS]).todense() \
                         ,im2.fit_transform(np.array(train_set[NUM_COLS]))),axis=1)
 X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
                         ,im2.transform(np.array(test_set[NUM_COLS]))),axis=1)
 Y = cat_le
+
+## Get rid of unimportant ##
+logging.warn('Extracting meaningful features')
+abc = AdaBoostClassifier(learning_rate=0.01)
+abc.fit( X_1 , Y  )
+fi = abc.feature_importances_
+features = np.argsort(fi)[::-1][:25]
+
+## Run model with only training data ##
+logging.warn('Running model with training data')
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 xgb.fit(X_1 , Y)
 
+## Run model with only training data ##
 logging.warn('Test prediction accuracy')
 p_pred = xgb.predict(X_2)
 p_pred_i = le.inverse_transform(p_pred)
+p_pred_p = xgb.predict_proba(X_2)
 logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(test_target).ravel())))
 logging.warn('\n'+classification_report(p_pred_i,np.array(test_target)))
+logging.warn('Log Loss: {}'.format(log_loss(np.array(test_target).ravel(), p_pred_p)))
 
 ## Run model with all data ##
-logging.warn('Re-run model with all training data')
+logging.warn('Re-running model with all training data')
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 X = np.concatenate((X_1,X_2))
@@ -498,7 +536,7 @@ X = np.concatenate((p.fit_transform(final_test_set[CAT_COLS]).todense() \
 f_pred = xgb.predict_proba(X)
 
 ## Write to submissing file ##
-f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(train_target)))
+f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(np.array(train_target).ravel())))
 f_pred_df.index = np.array(final_test_set['id'])
 
 s = f_pred_df.stack()
