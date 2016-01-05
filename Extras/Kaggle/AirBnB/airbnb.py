@@ -422,7 +422,8 @@ le = LabelEncoder()
 cat_le = le.fit_transform(np.array(train_target))
 cat_tst_le = le.transform(np.array(test_target))
 
-mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer()
+mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+im2 = Imputer(strategy='mean')
 p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
 '''
 params_grid = {'learning_rate':[0.3,0.1,0.05,0.02,0.01]
@@ -434,16 +435,16 @@ print(gs_csv.best_params_)
 '''
 ## Run model with only training data ##
 X_1 = np.concatenate((p.fit_transform(train_set[CAT_COLS]).todense() \
-                        ,np.array(train_set[NUM_COLS])),axis=1)
+                        ,im2.fit_transform(np.array(train_set[NUM_COLS]))),axis=1)
 X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
-                        ,np.array(test_set[NUM_COLS])),axis=1)
+                        ,im2.fit_transform(np.array(test_set[NUM_COLS]))),axis=1)
 Y = cat_le
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 xgb.fit(X_1 , Y)
 p_pred = xgb.predict(X_2)
 p_pred_i = le.inverse_transform(p_pred)
-logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(test_target))))
+logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(test_target).ravel())))
 logging.warn('\n'+classification_report(p_pred_i,np.array(test_target)))
 
 ## Run model with all data ##
