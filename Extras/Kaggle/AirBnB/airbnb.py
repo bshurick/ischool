@@ -443,7 +443,7 @@ xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
 xgb.fit(X_1 , Y)
 p_pred = xgb.predict(X_2)
 p_pred_i = le.inverse_transform(p_pred)
-logging.warn('Accuracy: '+np.mean(p_pred_i == np.array(test_target)))
+logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(test_target))))
 logging.warn('\n'+classification_report(p_pred_i,np.array(test_target)))
 
 ## Run model with all data ##
