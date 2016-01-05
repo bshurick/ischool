@@ -344,7 +344,8 @@ for i in range(components):
     train_set.loc[merged_nums.index,'pca_'+str(i)] = merged_nums[i]
     test_set.loc[merged_nums_tst.index,'pca_'+str(i)] = merged_nums_tst[i]
 
-NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
+## Withhold new features for now ##
+# NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
 
 # #### age buckets
 
