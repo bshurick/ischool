@@ -25,7 +25,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
-from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.linear_model import LinearRegression, Ridge, ElasticNet
 from sklearn.ensemble import AdaBoostClassifier
 
 # Metrics
@@ -310,7 +310,6 @@ ohe = OneHotEncoder()
 ss = StandardScaler(with_mean=False)
 ii = Imputer(strategy='most_frequent')
 ii2 = Imputer(strategy='mean')
-lms = [ Ridge(alpha=0.2) for l in np.arange(components) ]
 p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
 p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
 
@@ -326,6 +325,7 @@ mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
 mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
 mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
 
+lms = [ ElasticNet(alpha=0.002,l1_ratio=0.5) for l in np.arange(components) ]
 for i,lm in enumerate(lms):
     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
     train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
