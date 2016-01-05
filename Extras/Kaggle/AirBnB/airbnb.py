@@ -293,6 +293,17 @@ merged_nums = pd.merge(tr_num \
                         , how='inner' \
                         , left_index=True \
                         , right_index=True  )
+merged_cats_tst = pd.merge(tst_cat \
+                        , pca_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+merged_nums_tst = pd.merge(tst_num \
+                        , pca_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+
 mcl = MultiColumnLabelEncoder()
 mm = MinMaxScaler()
 ohe = OneHotEncoder()
@@ -330,7 +341,11 @@ for i in range(components):
     logging.warn('MSE {}: {}'.format(i \
         , np.sqrt(np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2))) \
     ))
+    train_set.loc[merged_nums.index,'pca_'+str(i)] = merged_nums[i]
+    test_set.loc[merged_nums_tst.index,'pca_'+str(i)] = merged_nums_tst[i]
+
 NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
+
 # #### age buckets
 
 # logging.warn('Processing age bucket data')
