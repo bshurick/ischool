@@ -325,7 +325,19 @@ mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
 mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
 mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
 
-lms = [ ElasticNet(alpha=0.002,l1_ratio=0.5) for l in np.arange(components) ]
+lm_cvs = [ ElasticNetCV( \
+            l1_ratio=[.1, .5, .7, .9, .95, .99, 1] \
+            , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
+            , max_iter=5000, n_jobs=2
+        ) \
+        for l in np.arange(components) ]
+for i,lm in enumerate(lm_cvs):
+    lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+
+for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
+lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+            for l in lm_cvs ]
+
 for i,lm in enumerate(lms):
     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
     train_set.loc[:,'pca_'+str(i)] = lm.predict(trcombined)
