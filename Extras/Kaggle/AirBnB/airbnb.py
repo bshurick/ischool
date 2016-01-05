@@ -25,7 +25,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, Ridge
 from sklearn.ensemble import AdaBoostClassifier
 
 # Metrics
@@ -155,8 +155,7 @@ CAT_COLS = [
 ]
 NUM_COLS = [
     'age',
-    'days_to_first_booking',
-    'population_estimate'
+    'days_to_first_booking'
 ]
 
 # ## Read data
@@ -300,7 +299,7 @@ ohe = OneHotEncoder()
 ss = StandardScaler(with_mean=False)
 ii = Imputer(strategy='most_frequent')
 ii2 = Imputer(strategy='mean')
-lms = [ LinearRegression() for l in np.arange(components) ]
+lms = [ Ridge(alpha=0.2) for l in np.arange(components) ]
 p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
 p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
 
@@ -328,10 +327,10 @@ merged_tst = pd.merge(test_set \
                         , left_index=True \
                         , right_index=True  )
 for i in range(components):
-    logger.warn('MSE {}: {}'.format(i \
+    logging.warn('MSE {}: {}'.format(i \
         , np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2)) \
     ))
-
+NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
 # #### age buckets
 
 # logging.warn('Processing age bucket data')
@@ -423,6 +422,8 @@ le = LabelEncoder()
 cat_le = le.fit_transform(np.array(train_target))
 cat_tst_le = le.transform(np.array(test_target))
 
+mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer()
+p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
 '''
 params_grid = {'learning_rate':[0.3,0.1,0.05,0.02,0.01]
 		, 'max_depth':[ 4, 6 ]}
@@ -431,15 +432,20 @@ xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', subsample=0.5, 
 gs_csv = GridSearchCV(xgb, params_grid).fit(train_set_new, cat_le)
 print(gs_csv.best_params_)
 '''
-
+X_1 = np.concatenate((p.fit_transform(train_set[CAT_COLS]).todense() \
+                        ,np.array(train_set[NUM_COLS])),axis=1)
+X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
+                        ,np.array(test_set[NUM_COLS])),axis=1)
+X = np.concatenate((X_1,X_2))
+Y = np.concatenate([cat_le,cat_tst_le.ravel()])
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
-xgb.fit(np.concatenate([train_set,test_set]), np.concatenate([cat_le,cat_tst_le]))
+xgb.fit(X , Y)
 p_pred = xgb.predict(test_set_new)
 p_pred_i = le.inverse_transform(p_pred)
 
-print(np.mean(p_pred_i == np.array(test_target)))
-print(classification_report(p_pred_i,np.array(test_target)))
+logger.warn(np.mean(p_pred_i == np.array(test_target)))
+logger.warn((classification_report(p_pred_i,np.array(test_target))))
 
 f_pred = xgb.predict_proba(final_test_set_new)
 
