@@ -267,12 +267,14 @@ fi = abc.feature_importances_
 features = np.argsort(fi)[::-1][:10]
 
 ## Collapse into smaller feature set ##
-components = 4
+components = 10
 logging.warn('Collapsing feature set using PCA')
 pca = PCA(n_components=components)
 pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
                             , index = sessions_new.index)
 logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
+pca_features = sessions_new.iloc[:,features]
+pca_features.columns = range(components)
 
 ## Create prediction model for features ##
 logging.warn('Creating regression model for session features')
@@ -356,11 +358,11 @@ for i in range(components):
     logging.warn('MSE {}: {}'.format(i \
         , np.sqrt(np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2))) \
     ))
-    train_set.loc[merged_nums.index,'pca_'+str(i)] = merged_nums[i]
-    test_set.loc[merged_nums_tst.index,'pca_'+str(i)] = merged_nums_tst[i]
+    # train_set.loc[merged_nums.index,'pca_'+str(i)] = merged_nums[i]
+    # test_set.loc[merged_nums_tst.index,'pca_'+str(i)] = merged_nums_tst[i]
 
 ## Withhold new features for now ##
-# NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
+NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
 
 # #### age buckets
 
@@ -470,7 +472,7 @@ print(gs_csv.best_params_)
 X_1 = np.concatenate((p.fit_transform(train_set[CAT_COLS]).todense() \
                         ,im2.fit_transform(np.array(train_set[NUM_COLS]))),axis=1)
 X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
-                        ,im2.fit_transform(np.array(test_set[NUM_COLS]))),axis=1)
+                        ,im2.transform(np.array(test_set[NUM_COLS]))),axis=1)
 Y = cat_le
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
@@ -490,12 +492,10 @@ X = np.concatenate((X_1,X_2))
 Y = np.concatenate([cat_le,cat_tst_le.ravel()])
 xgb.fit(X , Y)
 
-## Run model with all data ##
 logging.warn('Make predictions for final test set')
 X = np.concatenate((p.fit_transform(final_test_set[CAT_COLS]).todense() \
                         ,np.array(final_test_set[NUM_COLS])),axis=1)
 f_pred = xgb.predict_proba(X)
-
 
 ## Write to submissing file ##
 f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(train_target)))
