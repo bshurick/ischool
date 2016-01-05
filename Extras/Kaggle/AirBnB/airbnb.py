@@ -260,19 +260,22 @@ merged = pd.merge(\
          )
 
 ## Extract most importance features ##
+logging.warn('Extracting meaningful features')
 abc = AdaBoostClassifier(learning_rate=0.1)
 abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
 fi = abc.feature_importances_
-features = np.argsort(fi)[::-1][:20]
+features = np.argsort(fi)[::-1][:10]
 
 ## Collapse into smaller feature set ##
 components = 4
+logging.warn('Collapsing feature set using PCA')
 pca = PCA(n_components=components)
 pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
                             , index = sessions_new.index)
 logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
 
 ## Create prediction model for features ##
+logging.warn('Creating regression model for session features')
 tr_cat = train_set.loc[:,CAT_COLS]
 tr_cat.index = train_set['id']
 tr_num = train_set.loc[:,NUM_COLS]
@@ -446,6 +449,8 @@ for i in range(components):
 # s_sort = sorted(enumerate(s),key=lambda x: x[1],reverse=True)
 # features = [i[0] for i in s_sort if i[1]>=min(sorted(s,reverse=True)[:30])]
 
+logging.warn('Create boosted trees model with training data')
+## Encode categories ##
 le = LabelEncoder()
 cat_le = le.fit_transform(np.array(train_target))
 cat_tst_le = le.transform(np.array(test_target))
@@ -470,22 +475,29 @@ Y = cat_le
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 xgb.fit(X_1 , Y)
+
+logging.warn('Test prediction accuracy')
 p_pred = xgb.predict(X_2)
 p_pred_i = le.inverse_transform(p_pred)
 logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(test_target).ravel())))
 logging.warn('\n'+classification_report(p_pred_i,np.array(test_target)))
 
 ## Run model with all data ##
+logging.warn('Re-run model with all training data')
 xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 X = np.concatenate((X_1,X_2))
 Y = np.concatenate([cat_le,cat_tst_le.ravel()])
 xgb.fit(X , Y)
 
+## Run model with all data ##
+logging.warn('Make predictions for final test set')
 X = np.concatenate((p.fit_transform(final_test_set[CAT_COLS]).todense() \
                         ,np.array(final_test_set[NUM_COLS])),axis=1)
 f_pred = xgb.predict_proba(X)
 
+
+## Write to submissing file ##
 f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(train_target)))
 f_pred_df.index = np.array(final_test_set['id'])
 
@@ -494,4 +506,6 @@ s2 = s.reset_index(level=0).reset_index(level=0)
 s2.columns = ['country','id','score']
 r = s2.groupby(['id'])['score'].rank(ascending=False)
 s3 = s2[r<=5]
+
+logging.warn('Writing to submission file')
 s3[['id','country','score']].to_csv('Data/submission.csv',index=False)
