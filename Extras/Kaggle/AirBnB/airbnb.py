@@ -328,7 +328,7 @@ merged_tst = pd.merge(test_set \
                         , right_index=True  )
 for i in range(components):
     logging.warn('MSE {}: {}'.format(i \
-        , np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2)) \
+        , np.sqrt(np.mean(np.sum((merged_tst['pca_'+str(i)] - merged_tst[i])**2))) \
     ))
 NUM_COLS += [ 'pca_'+str(i) for i in range(components) ]
 # #### age buckets
