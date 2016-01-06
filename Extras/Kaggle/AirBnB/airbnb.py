@@ -29,7 +29,8 @@ from sklearn.linear_model import LinearRegression, Ridge, ElasticNet
 from sklearn.ensemble import AdaBoostClassifier
 
 # Metrics
-from sklearn.metrics import log_loss, classification_report
+from sklearn.metrics import log_loss, classification_report \
+                            , label_ranking_average_precision_score, label_ranking_loss
 
 # Neural Nets
 from keras.models import Sequential
@@ -164,6 +165,7 @@ NUM_COLS = [
 logging.warn('Loading data files')
 
 ## Read user data ##
+np.random.seed(9)
 train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
 train_full = train_full.iloc[np.random.permutation(len(train_full))]
 train_set, train_target = train_full[TEST_N:][USER_COLUMNS+TARGET_COLUMN] \
@@ -289,14 +291,18 @@ train_set = pd.concat([train_set,tr_pca],axis=1)
 test_set = pd.concat([test_set,tst_pca],axis=1)
 final_test_set = pd.concat([final_test_set,fnl_pca],axis=1)
 
-# NUM_COLS += list( sessions_new.columns )
-NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
+NUM_COLS += list( sessions_new.columns )
+# NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
 logging.warn('Create boosted trees model with training data')
 ## Encode categories ##
 le = LabelEncoder()
 cat_le = le.fit_transform(np.array(train_target).ravel())
 cat_tst_le = le.transform(np.array(test_target).ravel())
+
+lb = LabelBinarizer()
+cat_lb = lb.fit_transform(np.array(train_target).ravel())
+cat_tst_lb = lb.transform(np.array(test_target).ravel())
 
 mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
 im2 = Imputer(strategy='mean')
@@ -318,11 +324,11 @@ X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
 Y = cat_le
 
 ## Get rid of unimportant ##
-logging.warn('Extracting meaningful features')
-abc = AdaBoostClassifier(learning_rate=0.01)
-abc.fit( X_1 , Y  )
-fi = abc.feature_importances_
-features = np.argsort(fi)[::-1][:25]
+# logging.warn('Extracting meaningful features')
+# abc = AdaBoostClassifier(learning_rate=0.01)
+# abc.fit( X_1 , Y  )
+# fi = abc.feature_importances_
+# features = np.argsort(fi)[::-1][:25]
 
 ## Run model with only training data ##
 logging.warn('Running model with training data')
@@ -338,6 +344,8 @@ p_pred_p = xgb.predict_proba(X_2)
 logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(test_target).ravel())))
 logging.warn('\n'+classification_report(p_pred_i,np.array(test_target)))
 logging.warn('Log Loss: {}'.format(log_loss(np.array(test_target).ravel(), p_pred_p)))
+logging.warn('Label Ranking Precision score: {}'.format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
 
 ## Run model with all data ##
 logging.warn('Re-running model with all training data')
