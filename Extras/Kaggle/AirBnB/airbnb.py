@@ -283,6 +283,7 @@ fnl_pca = pd.DataFrame( pca.transform(final_test_set.loc[:,sessions_new.columns]
                     , columns = ['pca_session_' + str(i) for i in range(c)]
                     , index = final_test_set.index \
                 )
+logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
 
 train_set = pd.concat([train_set,tr_pca],axis=1)
 test_set = pd.concat([test_set,tst_pca],axis=1)
@@ -342,8 +343,8 @@ logging.warn('Log Loss: {}'.format(log_loss(np.array(test_target).ravel(), p_pre
 logging.warn('Re-running model with all training data')
 xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
-X = np.concatenate((X_1,X_2),axis=1)
-Y = np.concatenate([cat_le,cat_tst_le])
+X = np.concatenate((X_1,X_2))
+Y = np.concatenate((cat_le,cat_tst_le))
 xgb.fit(X , Y)
 
 logging.warn('Make predictions for final test set')
