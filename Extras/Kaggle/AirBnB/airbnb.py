@@ -269,7 +269,27 @@ train_set.loc[:,sessions_new.columns] = train_set.loc[:,sessions_new.columns].fi
 test_set.loc[:,sessions_new.columns] = test_set.loc[:,sessions_new.columns].fillna(0)
 final_test_set.loc[:,sessions_new.columns] = final_test_set.loc[:,sessions_new.columns].fillna(0)
 
-NUM_COLS += list( sessions_new.columns )
+c = 5
+pca = PCA(n_components=c)
+tr_pca = pd.DataFrame( pca.fit_transform(train_set.loc[:,sessions_new.columns]) \
+                    , columns = ['pca_session_' + str(i) for i in range(c)] \
+                    , index = train_set.index \
+                )
+tst_pca = pd.DataFrame( pca.transform(test_set.loc[:,sessions_new.columns]) \
+                    , columns = ['pca_session_' + str(i) for i in range(c)]
+                    , index = test_set.index \
+                )
+fnl_pca = pd.DataFrame( pca.transform(final_test_set.loc[:,sessions_new.columns]) \
+                    , columns = ['pca_session_' + str(i) for i in range(c)]
+                    , index = final_test_set.index \
+                )
+
+train_set = pd.concat([train_set,tr_pca],axis=1)
+test_set = pd.concat([test_set,tst_pca],axis=1)
+final_test_set = pd.concat([final_test_set,fnl_pca],axis=1)
+
+# NUM_COLS += list( sessions_new.columns )
+NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
 logging.warn('Create boosted trees model with training data')
 ## Encode categories ##
@@ -305,7 +325,7 @@ features = np.argsort(fi)[::-1][:25]
 
 ## Run model with only training data ##
 logging.warn('Running model with training data')
-xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
+xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 xgb.fit(X_1 , Y)
 
@@ -320,15 +340,15 @@ logging.warn('Log Loss: {}'.format(log_loss(np.array(test_target).ravel(), p_pre
 
 ## Run model with all data ##
 logging.warn('Re-running model with all training data')
-xgb = XGBClassifier(max_depth=4, learning_rate=0.05, n_estimators=50,
+xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
-X = np.concatenate((X_1,X_2))
-Y = np.concatenate([cat_le,cat_tst_le.ravel()])
+X = np.concatenate((X_1,X_2),axis=1)
+Y = np.concatenate([cat_le,cat_tst_le])
 xgb.fit(X , Y)
 
 logging.warn('Make predictions for final test set')
-X = np.concatenate((p.fit_transform(final_test_set[CAT_COLS]).todense() \
-                        ,np.array(final_test_set[NUM_COLS])),axis=1)
+X = np.concatenate((p.transform(final_test_set[CAT_COLS]).todense() \
+                        ,im2.transform(np.array(final_test_set[NUM_COLS]))),axis=1)
 f_pred = xgb.predict_proba(X)
 
 ## Write to submissing file ##
