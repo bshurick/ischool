@@ -27,6 +27,7 @@ from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
 from sklearn.ensemble import AdaBoostClassifier
+from sklearn.feature_selection import RFECV
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -147,7 +148,6 @@ AGE_BUCKET_COLUMNS = [
 ## Define category and numeric fields for model ##
 CAT_COLS = [
  'date_account_created',
- 'timestamp_first_active',
  'date_first_booking',
  'gender',
  'signup_method',
@@ -358,26 +358,31 @@ x = ohe.fit_transform(
 )
 n = x.shape[1]//50
 
+## Function to minimize session data at the user level ##
 def minimize_df(i,lim,n,nparr):
     m = min(lim,(i+1)*n)
     return pd.DataFrame(nparr[:,i*n:m].toarray() \
                 ,index=sessions['user_id']) \
                 .groupby(level=0).sum()
 
+## Minimize session data ##
 z = ( minimize_df(y,x.shape[1],50,x) for y in range(n+1) )
 
+## Combine datasets ##
 sessions_new = pd.concat(z,axis=1)
 sessions_new.columns = [ 'session_'+str(i) for i in range(len(sessions_new.columns)) ]
 
+## Add session features to training data ##
 train_set = pd.merge(train_set, sessions_new, how='left', left_index=True, right_index=True)
 test_set = pd.merge(test_set, sessions_new, how='left', left_index=True, right_index=True)
 final_test_set = pd.merge(final_test_set, sessions_new, how='left', left_index=True, right_index=True)
 
+## Set sessions to zero for users with no usage ##
 train_set.loc[:,sessions_new.columns] = train_set.loc[:,sessions_new.columns].fillna(0)
 test_set.loc[:,sessions_new.columns] = test_set.loc[:,sessions_new.columns].fillna(0)
 final_test_set.loc[:,sessions_new.columns] = final_test_set.loc[:,sessions_new.columns].fillna(0)
 
-## Prepare data for regression modeling ##
+## Prepare data for feature extraction ##
 target = pd.DataFrame({'country_destination':train_set['country_destination']})
 target.index = train_set['id']
 merged = pd.merge(\
@@ -391,8 +396,12 @@ merged = pd.merge(\
 ## Extract most importance features ##
 logging.warn('Extracting meaningful features')
 abc = AdaBoostClassifier(learning_rate=0.1)
-abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
-fi = abc.feature_importances_
+rfe = RFECV(abc, scoring='precision_weighted')
+le = LabelEncoder()
+X = np.array(merged)[:,:-1]
+Y = le.fit_transform(np.array(merged)[:,-1:].ravel())
+rfe.fit( X , Y )
+fi = rfe.ranking_
 components = 20
 features = np.argsort(fi)[::-1][:components]
 
