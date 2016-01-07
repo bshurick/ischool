@@ -331,7 +331,7 @@ train_set = train_set.drop_duplicates(['id'])
 test_set = test_set.drop_duplicates(['id'])
 final_test_set = final_test_set.drop_duplicates(['id'])
 
-CAT_COLS += [ 'population_in_thousands'+c for c in set(countries['country_destination']) ]
+NUM_COLS += [ 'population_in_thousands'+c for c in set(countries['country_destination']) ]
 
 # #### Sessions
 logging.warn('Processing session data model')
