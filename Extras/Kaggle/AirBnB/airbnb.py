@@ -108,7 +108,8 @@ TRAIN_DATA_FILE = 'Data/train_users_2.csv'
 TEST_N = 20000
 
 ## Fields ##
-USER_COLUMNS = ['id',
+USER_COLUMNS = [
+ 'id',
  'date_account_created',
  'timestamp_first_active',
  'date_first_booking',
@@ -122,41 +123,46 @@ USER_COLUMNS = ['id',
  'first_affiliate_tracked',
  'signup_app',
  'first_device_type',
- 'first_browser']
+ 'first_browser',
+]
 TARGET_COLUMN = ['country_destination']
 
-SESSION_COLUMNS = ['user_id',
+SESSION_COLUMNS = [
+ 'user_id',
  'action',
  'action_type',
  'action_detail',
  'device_type',
- 'secs_elapsed']
+ 'secs_elapsed'
+]
 
-AGE_BUCKET_COLUMNS = ['age_bucket',
+AGE_BUCKET_COLUMNS = [
+ 'age_bucket',
  'country_destination',
  'gender',
  'population_in_thousands',
- 'year']
+ 'year'
+]
 
+## Define category and numeric fields for model ##
 CAT_COLS = [
-    'gender',
-    'signup_method', # New method weibo in final test data
-    'signup_flow',
-    'language',
-    'affiliate_channel',
-    'affiliate_provider',
-    'first_affiliate_tracked',
-    'signup_app',
-    'first_device_type',
-    'first_browser',
-    'year_created',
-    'month_created',
-    'year_first_booking' ,
-    'month_first_booking' ,
+ 'date_account_created',
+ 'timestamp_first_active',
+ 'date_first_booking',
+ 'gender',
+ 'age',
+ 'signup_method',
+ 'signup_flow',
+ 'language',
+ 'affiliate_channel',
+ 'affiliate_provider',
+ 'first_affiliate_tracked',
+ 'signup_app',
+ 'first_device_type',
+ 'first_browser',
 ]
 NUM_COLS = [
     'age',
-    'days_to_first_booking'
 ]
 
 # ## Read data
@@ -195,31 +201,40 @@ test_set.loc[test_set['age']>115,['age']] = np.nan
 final_test_set.loc[final_test_set['age']>115,['age']] = np.nan
 
 ## add new date features ##
-train_set['date_created'] = pd.to_datetime(train_set['date_account_created'])
+train_set['date_account_created'] = pd.to_datetime(train_set['date_account_created'])
 train_set['date_first_booking'] = pd.to_datetime(train_set['date_first_booking'])
-train_set['year_created'] = train_set['date_created'].dt.year
-train_set['month_created'] = train_set['date_created'].dt.month
+train_set['year_created'] = train_set['date_account_created'].dt.year
+train_set['month_created'] = train_set['date_account_created'].dt.month
 train_set['year_first_booking'] = train_set['date_first_booking'].dt.year
 train_set['month_first_booking'] = train_set['date_first_booking'].dt.month
-train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_created']
+train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_account_created']
 
 ## repeat with test ##
-test_set['date_created'] = pd.to_datetime(test_set['date_account_created'])
+test_set['date_account_created'] = pd.to_datetime(test_set['date_account_created'])
 test_set['date_first_booking'] = pd.to_datetime(test_set['date_first_booking'])
-test_set['year_created'] = test_set['date_created'].dt.year
-test_set['month_created'] = test_set['date_created'].dt.month
+test_set['year_created'] = test_set['date_account_created'].dt.year
+test_set['month_created'] = test_set['date_account_created'].dt.month
 test_set['year_first_booking'] = test_set['date_first_booking'].dt.year
 test_set['month_first_booking'] = test_set['date_first_booking'].dt.month
-test_set['days_to_first_booking'] = test_set['date_first_booking']-test_set['date_created']
+test_set['days_to_first_booking'] = test_set['date_first_booking']-test_set['date_account_created']
 
 ## repeat with final test ##
-final_test_set['date_created'] = pd.to_datetime(final_test_set['date_account_created'])
+final_test_set['date_account_created'] = pd.to_datetime(final_test_set['date_account_created'])
 final_test_set['date_first_booking'] = pd.to_datetime(final_test_set['date_first_booking'])
-final_test_set['year_created'] = final_test_set['date_created'].dt.year
-final_test_set['month_created'] = final_test_set['date_created'].dt.month
+final_test_set['year_created'] = final_test_set['date_account_created'].dt.year
+final_test_set['month_created'] = final_test_set['date_account_created'].dt.month
 final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.year
 final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
-final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_created']
+final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_account_created']
+
+## Add new columns to model cols ##
+CAT_COLS += [
+    'year_first_booking',
+    'month_first_booking',
+    'year_created',
+    'month_created',
+]
+NUM_COLS += ['days_to_first_booking']
 
 ## add new date features ##
 train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0) \
@@ -240,6 +255,83 @@ final_test_set['days_to_first_booking'] = \
 ## Choose random record in training data to assign 'weibo' signup method ##
 ## This avoids issues later with one hot encoding ##
 train_set.loc[train_set.iloc[22]['id'],['signup_method']] = 'weibo'
+
+# #### age buckets
+age_buckets['age_merge'] = (np.floor(\
+        np.array([int(re.split(r'[-+]',str(x))[0]) \
+            for x in age_buckets['age_bucket']])/10)*10).astype('int')
+age_buckets.index = age_buckets['age_merge'].astype('string')\
+        +'-'+age_buckets['country_destination']\
+        +'-'+age_buckets['gender'].str.lower()
+
+for c in set(countries['country_destination']):
+    train_set['age_merge'+'-'+c] = (
+                        np.floor(\
+                            train_set['age']/10)*10\
+                        )\
+                            .fillna(0)\
+                            .astype('int')\
+                            .astype('string') \
+                        +'-'+c \
+                        +'-'+train_set['gender'].str.lower()
+    test_set['age_merge'+'-'+c] = (
+                        np.floor(\
+                            test_set['age']/10)*10\
+                        )\
+                            .fillna(0)\
+                            .astype('int')\
+                            .astype('string') \
+                        +'-'+c \
+                        +'-'+test_set['gender'].str.lower()
+    final_test_set['age_merge'+'-'+c] = (
+                        np.floor(\
+                            final_test_set['age']/10)*10\
+                        )\
+                            .fillna(0)\
+                            .astype('int')\
+                            .astype('string') \
+                        +'-'+c \
+                        +'-'+test_set['gender'].str.lower()
+
+age_buckets = age_buckets[[
+        'age_merge' \
+        ,'country_destination' \
+        ,'gender' \
+        ,'population_in_thousands']] \
+    .groupby(['age_merge','country_destination','gender']).sum()
+
+age_buckets.index = pd.Series([ str(i[0])+'-'+i[1]+'-'+i[2] for i in age_buckets.index])
+
+for c in set(countries['country_destination']):
+    train_set = pd.merge(
+        train_set \
+         , age_buckets \
+         , left_on=['age_merge'+'-'+c] \
+         , right_index=True \
+         , how='outer' \
+         , suffixes=(c,c)
+    )
+    test_set = pd.merge(
+        test_set \
+         , age_buckets \
+         , left_on=['age_merge'+'-'+c] \
+         , right_index=True \
+         , how='outer' \
+         , suffixes=(c,c)
+    )
+    final_test_set = pd.merge(
+        final_test_set \
+         , age_buckets \
+         , left_on=['age_merge'+'-'+c] \
+         , right_index=True \
+         , how='left' \
+         , suffixes=(c,c)
+    )
+train_set = train_set.drop_duplicates(['id'])
+test_set = test_set.drop_duplicates(['id'])
+final_test_set = final_test_set.drop_duplicates(['id'])
+
+CAT_COLS += [ 'population_in_thousands'+c for c in set(countries['country_destination']) ]
 
 # #### Sessions
 logging.warn('Processing session data model')
@@ -287,7 +379,7 @@ logging.warn('Extracting meaningful features')
 abc = AdaBoostClassifier(learning_rate=0.1)
 abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
 fi = abc.feature_importances_
-components = 50
+components = 20
 features = np.argsort(fi)[::-1][:components]
 
 # logging.warn('Collapsing feature set using PCA')
