@@ -442,11 +442,11 @@ X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
 Y = cat_le
 
 # Get rid of unimportant ##
-logging.warn('Extracting meaningful features')
-abc = AdaBoostClassifier(learning_rate=0.01)
-abc.fit( X_1 , Y  )
-fi = abc.feature_importances_
-features = np.argsort(fi)[::-1][:25]
+# logging.warn('Extracting meaningful features')
+# abc = AdaBoostClassifier(learning_rate=0.01)
+# abc.fit( X_1 , Y  )
+# fi = abc.feature_importances_
+# features = np.argsort(fi)[::-1][:25]
 
 ## Run model with only training data ##
 logging.warn('Running model with training data')
@@ -476,7 +476,7 @@ xgb.fit(X , Y)
 logging.warn('Make predictions for final test set')
 X = np.concatenate((p.transform(final_test_set[CAT_COLS]).todense() \
                         ,im2.transform(np.array(final_test_set[NUM_COLS]))),axis=1)
-f_pred = xgb.predict_proba(X[:,features])
+f_pred = xgb.predict_proba(X)
 
 ## Write to submissing file ##
 f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(np.array(train_target).ravel())))
