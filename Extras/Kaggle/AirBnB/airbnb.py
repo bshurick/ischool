@@ -25,7 +25,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
-from sklearn.linear_model import LinearRegression, Ridge, ElasticNet
+from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
 from sklearn.ensemble import AdaBoostClassifier
 
 # Metrics
@@ -271,7 +271,124 @@ train_set.loc[:,sessions_new.columns] = train_set.loc[:,sessions_new.columns].fi
 test_set.loc[:,sessions_new.columns] = test_set.loc[:,sessions_new.columns].fillna(0)
 final_test_set.loc[:,sessions_new.columns] = final_test_set.loc[:,sessions_new.columns].fillna(0)
 
-c = 5
+## Prepare data for regression modeling ##
+target = pd.DataFrame({'country_destination':train_set['country_destination']})
+target.index = train_set['id']
+merged = pd.merge(\
+            sessions_new\
+            , target\
+            , how='left'\
+            , left_index=True
+            , right_index=True
+         )
+
+## Extract most importance features ##
+logging.warn('Extracting meaningful features')
+abc = AdaBoostClassifier(learning_rate=0.1)
+abc.fit( np.array(merged)[:,:-1] , np.array(merged)[:,-1:].ravel() )
+fi = abc.feature_importances_
+components = 50
+features = np.argsort(fi)[::-1][:components]
+
+# logging.warn('Collapsing feature set using PCA')
+# pca = PCA(n_components=components)
+# pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
+#                             , index = sessions_new.index)
+# logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
+lm_features = sessions_new.iloc[:,features]
+lm_features.columns = range(components)
+
+## Create prediction model for features ##
+logging.warn('Creating regression model for session features')
+
+## Split out category and numeric columns ##
+tr_cat = train_set.loc[:,CAT_COLS]
+tr_cat.index = train_set['id']
+tr_num = train_set.loc[:,NUM_COLS]
+tr_num.index = train_set['id']
+
+tst_cat = test_set.loc[:,CAT_COLS]
+tst_cat.index = test_set['id']
+tst_num = test_set.loc[:,NUM_COLS]
+tst_num.index = test_set['id']
+
+final_tst_cat = final_test_set.loc[:,CAT_COLS]
+final_tst_cat.index = final_test_set['id']
+final_tst_num = final_test_set.loc[:,NUM_COLS]
+final_tst_num.index = final_test_set['id']
+
+## Merge with new features ##
+merged_cats = pd.merge(tr_cat \
+                        , lm_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+merged_nums = pd.merge(tr_num \
+                        , lm_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+mcl = MultiColumnLabelEncoder()
+mm = MinMaxScaler()
+ohe = OneHotEncoder()
+ss = StandardScaler(with_mean=False)
+ii = Imputer(strategy='most_frequent')
+ii2 = Imputer(strategy='mean')
+p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
+
+trcat_transformed = p1.fit_transform(tr_cat).todense()
+trnum_transformed = p2.fit_transform(tr_num)
+trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
+
+tstcat_transformed = p1.transform(tst_cat).todense()
+tstnum_transformed = p2.transform(tst_num)
+tstcombined = np.concatenate((tstcat_transformed, tstnum_transformed), axis=1)
+
+tstcat_final_transformed = p1.transform(final_tst_cat).todense()
+tstnum_final_transformed = p2.transform(final_tst_num)
+tstcombined_final = np.concatenate((tstcat_final_transformed, tstnum_final_transformed), axis=1)
+
+mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
+mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
+mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
+
+lm_cvs = [ ElasticNetCV( \
+            l1_ratio=[.1, .5, .7, .9, .95, .99, 1] \
+            , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
+            , max_iter=1200, n_jobs=2
+        ) \
+        for l in np.arange(components) ]
+for i,lm in enumerate(lm_cvs):
+    lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+
+for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
+lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+            for l in lm_cvs ]
+
+for i,lm in enumerate(lms):
+    lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+    train_set.loc[:,'lm_'+str(i)] = lm.predict(trcombined)
+    test_set.loc[:,'lm_'+str(i)] = lm.predict(tstcombined)
+    final_test_set.loc[:,'lm_'+str(i)] = lm.predict(tstcombined_final)
+    lms[i] = lm
+
+merged_tst = pd.merge(test_set \
+                        , lm_features \
+                        , how='inner' \
+                        , left_index=True \
+                        , right_index=True  )
+for i in range(components):
+    logging.warn('MSE {}: {}'.format(i \
+        , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
+                                        - merged_tst[i])**2))) \
+    ))
+    # train_set.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
+    # test_set.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
+
+## PCA ##
+logging.warn('Collapse session features with PCA')
+c = 7
 pca = PCA(n_components=c)
 tr_pca = pd.DataFrame( pca.fit_transform(train_set.loc[:,sessions_new.columns]) \
                     , columns = ['pca_session_' + str(i) for i in range(c)] \
@@ -292,7 +409,8 @@ test_set = pd.concat([test_set,tst_pca],axis=1)
 final_test_set = pd.concat([final_test_set,fnl_pca],axis=1)
 
 NUM_COLS += list( sessions_new.columns )
-# NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
+NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
+NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
 logging.warn('Create boosted trees model with training data')
 ## Encode categories ##
@@ -323,16 +441,16 @@ X_2 = np.concatenate((p.transform(test_set[CAT_COLS]).todense() \
                         ,im2.transform(np.array(test_set[NUM_COLS]))),axis=1)
 Y = cat_le
 
-## Get rid of unimportant ##
-# logging.warn('Extracting meaningful features')
-# abc = AdaBoostClassifier(learning_rate=0.01)
-# abc.fit( X_1 , Y  )
-# fi = abc.feature_importances_
-# features = np.argsort(fi)[::-1][:25]
+# Get rid of unimportant ##
+logging.warn('Extracting meaningful features')
+abc = AdaBoostClassifier(learning_rate=0.01)
+abc.fit( X_1 , Y  )
+fi = abc.feature_importances_
+features = np.argsort(fi)[::-1][:25]
 
 ## Run model with only training data ##
 logging.warn('Running model with training data')
-xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
+xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 xgb.fit(X_1 , Y)
 
@@ -349,7 +467,7 @@ logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pr
 
 ## Run model with all data ##
 logging.warn('Re-running model with all training data')
-xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
+xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
                     objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
 X = np.concatenate((X_1,X_2))
 Y = np.concatenate((cat_le,cat_tst_le))
@@ -358,7 +476,7 @@ xgb.fit(X , Y)
 logging.warn('Make predictions for final test set')
 X = np.concatenate((p.transform(final_test_set[CAT_COLS]).todense() \
                         ,im2.transform(np.array(final_test_set[NUM_COLS]))),axis=1)
-f_pred = xgb.predict_proba(X)
+f_pred = xgb.predict_proba(X[:,features])
 
 ## Write to submissing file ##
 f_pred_df = pd.DataFrame(f_pred,columns=sorted(set(np.array(train_target).ravel())))
