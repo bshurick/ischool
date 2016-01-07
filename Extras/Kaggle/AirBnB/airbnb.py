@@ -150,7 +150,6 @@ CAT_COLS = [
  'timestamp_first_active',
  'date_first_booking',
  'gender',
- 'age',
  'signup_method',
  'signup_flow',
  'language',
@@ -189,13 +188,15 @@ age_buckets = pd.read_csv(AGE_GENDER_BUCKETS_FILE)
 ## Read session data ##
 sessions = pd.read_csv(SESSIONS_FILE)
 
+
 # #### User data
-logging.warn('Processing user data')
+logging.warn('Processing user data features')
 
 train_set.index = train_set['id']
 test_set.index = test_set['id']
 final_test_set.index = final_test_set['id']
 
+## Clean up unreasonable values
 train_set.loc[train_set['age']>115,['age']] = np.nan
 test_set.loc[test_set['age']>115,['age']] = np.nan
 final_test_set.loc[final_test_set['age']>115,['age']] = np.nan
@@ -236,25 +237,38 @@ CAT_COLS += [
 ]
 NUM_COLS += ['days_to_first_booking']
 
+## Add special values for nulls for categorical fields
+train_set['year_first_booking'].fillna(1970,inplace=True)
+train_set['month_first_booking'].fillna(1970,inplace=True)
+train_set['days_to_first_booking'].fillna(-1,inplace=True)
+train_set['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
+
+## repeat with test ##
+test_set['year_first_booking'].fillna(1970,inplace=True)
+test_set['month_first_booking'].fillna(0,inplace=True)
+test_set['days_to_first_booking'].fillna(-1,inplace=True)
+test_set['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
+
+## Repeat with final test ##
+final_test_set['year_first_booking'].fillna(1970,inplace=True)
+final_test_set['month_first_booking'].fillna(0,inplace=True)
+final_test_set['days_to_first_booking'].fillna(-1,inplace=True)
+final_test_set['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
+
 ## add new date features ##
-train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0) \
-                    ,['days_to_first_booking']] = np.nan
-train_set['days_to_first_booking'] = \
-                    train_set['days_to_first_booking'].astype('timedelta64[D]')
+train_set.loc[train_set['days_to_first_booking']<pd.Timedelta(0),['days_to_first_booking']] = np.nan
+train_set['days_to_first_booking'] = train_set['days_to_first_booking'].astype('timedelta64[D]')
 
-test_set.loc[test_set['days_to_first_booking']<pd.Timedelta(0)\
-                    ,['days_to_first_booking']] = np.nan
-test_set['days_to_first_booking'] = \
-                    test_set['days_to_first_booking'].astype('timedelta64[D]')
+test_set.loc[test_set['days_to_first_booking']<pd.Timedelta(0),['days_to_first_booking']] = np.nan
+test_set['days_to_first_booking'] = test_set['days_to_first_booking'].astype('timedelta64[D]')
 
-final_test_set.loc[final_test_set['days_to_first_booking']<pd.Timedelta(0) \
-                    ,['days_to_first_booking']] = np.nan
-final_test_set['days_to_first_booking'] = \
-                    final_test_set['days_to_first_booking'].astype('timedelta64[D]')
+final_test_set.loc[final_test_set['days_to_first_booking']<pd.Timedelta(0),['days_to_first_booking']] = np.nan
+final_test_set['days_to_first_booking'] = final_test_set['days_to_first_booking'].astype('timedelta64[D]')
 
 ## Choose random record in training data to assign 'weibo' signup method ##
 ## This avoids issues later with one hot encoding ##
 train_set.loc[train_set.iloc[22]['id'],['signup_method']] = 'weibo'
+
 
 # #### age buckets
 age_buckets['age_merge'] = (np.floor(\
