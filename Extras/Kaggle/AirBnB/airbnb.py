@@ -633,14 +633,16 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Label Ranking Precision score: {}'.format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
         logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
 
-    ## Run model with all data ##
+    ## Run model with all data and save ##
     if save_results:
-        logging.warn('Re-running model with all training data')
+        ''' Write results to a csv file
+            NOTE: sorting is not done here
+        '''
+        logging.warn('Make predictions for final test set')
+        logging.warn('Running model with all training data')
         xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X , Y)
-
-        logging.warn('Make predictions for final test set')
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = xgb.predict_proba(X)
@@ -658,9 +660,13 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Writing to submission file')
         s3[['id','country','score']].to_csv('Data/submission.csv',index=False)
 
-if __name__=='__main__':
+def main():
     load_data()
     user_features()
+    user_component_islation(categorical=True,numeric=True)
     age_buckets()
-    sessions()
-    final_model()
+    sessions(collapse=True,pca=True, lm=True)
+    final_model(test=True,grid_cv=False,save_results=False)
+
+if __name__=='__main__':
+    main()
