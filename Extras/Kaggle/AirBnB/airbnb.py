@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 import re
 import logging
+from itertools import product
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(message)s')
 
 # Sklearn
@@ -217,6 +218,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
 
     if categorical:
         global CAT_COLS
+        logging.warn('Recursively eliminating category features')
         ## Run first with category columns ##
         p = Pipeline([('im',im),('ohe',ohe)])
         X = p.fit_transform(
@@ -235,6 +237,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
 
     if numeric:
         global NUM_COLS
+        logging.warn('Recursively eliminating numeric features')
         ## Run again with numeric columns ##
         im2 = Imputer(strategy='mean') ; le = LabelEncoder()
         X = im2.fit_transform(train_full.iloc[:,:].loc[:,NUM_COLS])
@@ -255,6 +258,7 @@ def age_bucket(update_columns=True):
     global final_X_test
     global age_buckets
 
+    logging.warn('Joining age bucket data')
     genders = set(age_buckets['gender'])
     age_buckets['age_merge'] = np.array([int(re.split(r'[-+]',str(x))[0]) \
                 for x in age_buckets['age_bucket']]).astype('int')
@@ -268,6 +272,8 @@ def age_bucket(update_columns=True):
     dx = np.vectorize(lambda x: am[int(x)-1])
     for c in set(countries['country_destination']):
         for g in genders:
+            global train_full
+            global final_X_test
             train_full['age_merge'+'-'+c+'-'+g] = \
                                 pd.Series(dx(tf)) \
                                     .astype('int') \
@@ -292,6 +298,8 @@ def age_bucket(update_columns=True):
 
     for c in set(countries['country_destination']):
         for g in genders:
+            global train_full
+            global final_X_test
             train_full = pd.merge(
                 train_full \
                  , age_buckets \
@@ -311,7 +319,7 @@ def age_bucket(update_columns=True):
 
     if update_columns:
         global NUM_COLS
-        NUM_COLS += [ p+g for p in [ 'population_in_thousands'+c for c in set(countries['country_destination']) ] ]
+        NUM_COLS += [ p+g for p,g in product([ 'population_in_thousands'+c for c in set(countries['country_destination']) ],genders) ]
 
 # #### Sessions
 def sessions(collapse=True,pca=True, lm=True, update_columns=True):
@@ -319,6 +327,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
     '''
     global train_full
     global final_X_test
+    global sessions
 
     logging.warn('Processing session data model')
     cf = ['action','action_type','action_detail','device_type']
@@ -367,7 +376,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
         ## Extract most importance features ##
         logging.warn('Extracting meaningful session features')
         abc = AdaBoostClassifier(learning_rate=0.1)
-        rfe = RFECV(abc, scoring='precision', verbose=1, cv=2)
+        rfe = RFECV(abc, scoring='log_loss', verbose=2, cv=2)
         le = LabelEncoder()
         X = np.array(merged)[:,:-1]
         Y = le.fit_transform(np.array(merged)[:,-1:].ravel())
@@ -376,35 +385,9 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
         fi = rfe.ranking_
         longging.warn('Optimal number of session features: {}'.format(rfe.n_features_))
         session_columns = list(sessions_new.iloc[:,features].columns)
-        # session_columns = ['session_85',
-        #                      'session_99',
-        #                      'session_118',
-        #                      'session_141',
-        #                      'session_153',
-        #                      'session_213',
-        #                      'session_276',
-        #                      'session_281',
-        #                      'session_284',
-        #                      'session_290',
-        #                      'session_298',
-        #                      'session_300',
-        #                      'session_344',
-        #                      'session_361',
-        #                      'session_365',
-        #                      'session_369',
-        #                      'session_409',
-        #                      'session_441',
-        #                      'session_463',
-        #                      'session_488',
-        #                      'session_514',
-        #                      'session_515',
-        #                      'session_516',
-        #                      'session_538',
-        #                      'session_539']
-        ## Add final set of new session columns ##
     else:
         session_columns = list(sessions_new.iloc[:,features].columns)
-    if update_columns: NUM_COLS += session_columns
+    if update_columns: global NUM_COLS; NUM_COLS += session_columns
 
     ## PCA ##
     if pca:
@@ -420,7 +403,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
                             , index = final_X_test.index \
                         )
         logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
-        if update_columns: NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
+        if update_columns: global NUM_COLS; NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
         if lm:
             ## Create prediction model for PCA features ##
@@ -506,7 +489,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
             X_test = pd.concat([X_test,tst_pca],axis=1)
             final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
 
-            if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
+            if update_columns: global NUM_COLS; NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
 # ### Run final model ##
 def final_model(test=True,grid_cv=False,save_results=True):
@@ -685,7 +668,7 @@ def run():
     age_bucket(update_columns=True)
     sessions(collapse=True, pca=True, lm=True, update_columns=True)
     component_isolation(categorical=True, numeric=True, update_columns=True)
-    final_model(test=True, grid_cv=False, save_results=False)
+    final_model(test=True, grid_cv=False, save_results=True)
 
 # if __name__=='__main__':
 #     run()
