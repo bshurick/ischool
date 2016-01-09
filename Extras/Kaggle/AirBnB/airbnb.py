@@ -466,7 +466,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
         longging.warn('Optimal number of session features: {}'.format(rfe.n_features_))
         session_columns = list(sessions_new.iloc[:,features].columns)
     else:
-        session_columns = list(sessions_new.iloc[:,features].columns)
+        session_columns = list(sessions_new.columns)
     if update_columns: NUM_COLS += session_columns
 
     ## PCA ##
