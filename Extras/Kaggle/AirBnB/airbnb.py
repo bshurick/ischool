@@ -335,7 +335,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         if update_columns: NUM_COLS = feature_names
 
 # #### age buckets
-def age_bucket(update_columns=True):
+def attach_age_buckets(update_columns=True):
     ''' Merge user buckets data file
     '''
     global train_full
@@ -402,7 +402,7 @@ def age_bucket(update_columns=True):
         NUM_COLS += [ p+g for p,g in product([ 'population_in_thousands'+c for c in set(countries['country_destination']) ],genders) ]
 
 # #### Sessions
-def sessions(collapse=True,pca=True, lm=True, update_columns=True):
+def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
     ''' Collapse and merge user session data
     '''
     global train_full
@@ -664,8 +664,8 @@ def final_model(test=True,grid_cv=False,save_results=True):
 def run():
     declare_args(); load_data()
     user_features(update_columns=True)
-    age_bucket(update_columns=True)
-    sessions(collapse=True, pca=True, lm=True, update_columns=True)
+    attach_age_buckets(update_columns=True)
+    attach_sessions(collapse=True, pca=True, lm=True, update_columns=True)
     component_isolation(categorical=True, numeric=True, update_columns=True)
     final_model(test=True, grid_cv=False, save_results=True)
 
