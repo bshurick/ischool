@@ -208,7 +208,7 @@ def user_features(update_columns=True):
 
 
 # ### Isolate components that are usable ##
-def user_component_isolation(categorical=True,numeric=True,update_columns=False):
+def component_isolation(categorical=True,numeric=True,update_columns=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
     abc = AdaBoostClassifier(learning_rate=0.1)
@@ -273,13 +273,13 @@ def age_bucket(update_columns=True):
                                     .astype('int') \
                                     .astype('string') \
                                 +'-'+c \
-                                +'-'+train_full['gender'].str.lower()
+                                +'-'+g
             final_X_test['age_merge'+'-'+c+'-'+g] = \
                                 pd.Series(dx(fx)) \
                                     .astype('int') \
                                     .astype('string') \
                                 +'-'+c \
-                                +'-'+final_X_test['gender'].str.lower()
+                                +'-'+g
 
     age_buckets = age_buckets[[
             'age_merge' \
@@ -298,7 +298,7 @@ def age_bucket(update_columns=True):
                  , left_on=['age_merge'+'-'+c+'-'+g] \
                  , right_index=True \
                  , how='left' \
-                 , suffixes=(c,c)
+                 , suffixes=(c+g,c+g)
             )
             final_X_test = pd.merge(
                 final_X_test \
@@ -306,12 +306,12 @@ def age_bucket(update_columns=True):
                  , left_on=['age_merge'+'-'+c+'-'+g] \
                  , right_index=True \
                  , how='left' \
-                 , suffixes=(c,c)
+                 , suffixes=(c+g,c+g)
             )
 
     if update_columns:
         global NUM_COLS
-        NUM_COLS += [ 'population_in_thousands'+c for c in set(countries['country_destination']) ]
+        NUM_COLS += [ p+g for p in [ 'population_in_thousands'+c for c in set(countries['country_destination']) ] ]
 
 # #### Sessions
 def sessions(collapse=True,pca=True, lm=True, update_columns=True):
@@ -682,9 +682,9 @@ def declare_args():
 def run():
     declare_args(); load_data()
     user_features(update_columns=True)
-    user_component_isolation(categorical=True, numeric=True, update_columns=True)
     age_bucket(update_columns=True)
     sessions(collapse=True, pca=True, lm=True, update_columns=True)
+    component_isolation(categorical=True, numeric=True, update_columns=True)
     final_model(test=True, grid_cv=False, save_results=False)
 
 # if __name__=='__main__':
