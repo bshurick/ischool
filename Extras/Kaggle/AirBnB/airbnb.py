@@ -142,15 +142,15 @@ def user_features():
     '''
     global CAT_COLS
     global NUM_COLS
+    global train_full
+    global final_X_test
 
     logging.warn('Processing user data features')
     train_full.index = train_full['id']
-    X_test.index = X_test['id']
     final_X_test.index = final_X_test['id']
 
     ## Clean up unreasonable values
     train_full.loc[train_full['age']>115,['age']] = np.nan
-    X_test.loc[X_test['age']>115,['age']] = np.nan
     final_X_test.loc[final_X_test['age']>115,['age']] = np.nan
 
     ## add new date features ##
@@ -207,7 +207,7 @@ def user_features():
 
 
 # ### Isolate components that are usable ##
-def user_component_islation(categorical=True,numeric=True,update_columns=False):
+def user_component_isolation(categorical=True,numeric=True,update_columns=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
     abc = AdaBoostClassifier(learning_rate=0.1)
@@ -219,9 +219,9 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
         ## Run first with category columns ##
         p = Pipeline([('im',im),('ohe',ohe)])
         X = p.fit_transform(
-                mcl.fit_transform(X_train.iloc[:,:].loc[:,CAT_COLS])
+                mcl.fit_transform(train_full.iloc[:,:].loc[:,CAT_COLS])
             ) # trim original dataset to smaller sample
-        Y = le.fit_transform(np.array(Y_train.iloc[:,:]).ravel())
+        Y = le.fit_transform(np.array(target_full.iloc[:,:]).ravel())
         rfe = RFECV(abc, scoring='log_loss', verbose=2, cv=2)
         rfe.fit( X , Y )
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
@@ -236,14 +236,12 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
         global NUM_COLS
         ## Run again with numeric columns ##
         im2 = Imputer(strategy='mean') ; le = LabelEncoder()
-        X = im2.fit_transform(X_train.iloc[:,:].loc[:,NUM_COLS])
-        Y = le.fit_transform(np.array(Y_train.iloc[:,:]).ravel())
+        X = im2.fit_transform(train_full.iloc[:,:].loc[:,NUM_COLS])
+        Y = le.fit_transform(np.array(target_full.iloc[:,:]).ravel())
         rfe = RFECV(abc, scoring='log_loss', verbose=2, cv=2)
         rfe.fit( X , Y )
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
-        ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
-        ohe_indices = p.named_steps['ohe'].feature_indices_
-        features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
+        features = rfe.support_
         feature_names = list(X_train.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format('\n\t'.join(feature_names)))
         if update_columns: NUM_COLS = feature_names
@@ -253,6 +251,9 @@ def age_buckets():
     ''' Merge user buckets data file
     '''
     global NUM_COLS
+    global train_full
+    global final_X_test
+
     age_buckets['age_merge'] = (np.floor(\
             np.array([int(re.split(r'[-+]',str(x))[0]) \
                 for x in age_buckets['age_bucket']])/10)*10).astype('int')
@@ -317,6 +318,9 @@ def sessions(collapse=True,pca=True, lm=True):
     '''
     global CAT_COLS
     global NUM_COLS
+    global train_full
+    global final_X_test
+
     logging.warn('Processing session data model')
     cf = ['action','action_type','action_detail','device_type']
     s = sessions[cf].copy().fillna('missing')
@@ -669,10 +673,9 @@ def declare_args():
     ]
 
 def run():
-    declare_args()
-    load_data()
+    declare_args(); load_data()
     user_features()
-    user_component_islation(categorical=True,numeric=True,update_columns=False)
+    user_component_isolation(categorical=False,numeric=True,update_columns=False)
     age_buckets()
     sessions(collapse=True,pca=True, lm=True)
     final_model(test=True,grid_cv=False,save_results=False)
