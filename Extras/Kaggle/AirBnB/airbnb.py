@@ -203,7 +203,7 @@ def load_data():
     train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
     target_full = train_full[TARGET_COLUMN]
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
-                                                      train_full[USER_COLUMNS+TARGET_COLUMN] \
+                                                      train_full[USER_COLUMNS] \
                                                       , train_full[TARGET_COLUMN] \
                                                       , test_size=0.3 \
                                                       , random_state=0)
