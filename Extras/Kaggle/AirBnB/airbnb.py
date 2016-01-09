@@ -212,6 +212,7 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
     '''
     abc = AdaBoostClassifier(learning_rate=0.1)
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+    le = LabelEncoder()
 
     if categorical:
         global CAT_COLS
@@ -667,7 +668,7 @@ def declare_args():
         'age',
     ]
 
-def main():
+def run():
     declare_args()
     load_data()
     user_features()
@@ -677,4 +678,4 @@ def main():
     final_model(test=True,grid_cv=False,save_results=False)
 
 # if __name__=='__main__':
-#     main()
+#     run()
