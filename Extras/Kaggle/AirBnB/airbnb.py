@@ -102,102 +102,20 @@ class MultiColumnLabelEncoder:
             output[colname] = le.inverse_transform(output[colname])
         return output
 
-# Function to match One Hot Encoder features
-def match_features(features, indices):
-    '''
-        INPUT: active features from OHE and feature indices
-        OUTPUT: array of 0s and 1s that matches original feature set
-    '''
-    a = indices
-    x = list(features)
-    val = x.pop(0)
-    o = np.empty(len(a)-1,dtype=bool)
-    max_indice = len(indices)-1
-    for i,z in enumerate(a):
-        c = a[min(i+1,max_indice)]
-        if val<c and val>=z:
-            o[i] = True
-            try:
-                val = x.pop(0)
-            except IndexError:
-                return o
-        elif val==z:
-            o[i] = True
-        else:
-            o[i] = False
-    return o
-
-# ### Declare Args
-
-## Files ##
-AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
-COUNTRIES_FILE = 'Data/countries.csv'
-SAMPLE_SUBMISSION_FILE = 'Data/sample_submission.csv'
-SESSIONS_FILE = 'Data/sessions.csv'
-TEST_DATA_FINAL_FILE = 'Data/test_users.csv'
-TRAIN_DATA_FILE = 'Data/train_users_2.csv'
-
-## Model args ##
-TEST_N = 20000
-
-## Fields ##
-USER_COLUMNS = [
- 'id',
- 'date_account_created',
- 'timestamp_first_active',
- 'date_first_booking',
- 'gender',
- 'age',
- 'signup_method',
- 'signup_flow',
- 'language',
- 'affiliate_channel',
- 'affiliate_provider',
- 'first_affiliate_tracked',
- 'signup_app',
- 'first_device_type',
- 'first_browser',
-]
-TARGET_COLUMN = ['country_destination']
-
-SESSION_COLUMNS = [
- 'user_id',
- 'action',
- 'action_type',
- 'action_detail',
- 'device_type',
- 'secs_elapsed'
-]
-
-AGE_BUCKET_COLUMNS = [
- 'age_bucket',
- 'country_destination',
- 'gender',
- 'population_in_thousands',
- 'year'
-]
-
-## Define category and numeric fields for model ##
-CAT_COLS = [
- 'gender',
- 'signup_method',
- 'signup_flow',
- 'language',
- 'affiliate_channel',
- 'affiliate_provider',
- 'first_affiliate_tracked',
- 'signup_app',
- 'first_device_type',
- 'first_browser',
-]
-NUM_COLS = [
-    'age',
-]
-
 # ### Read data
 def load_data():
     ''' read in data files
     '''
+    global train_full
+    global target_full
+    global X_train
+    global X_test
+    global Y_train
+    global Y_test
+    global final_X_test
+    global countries
+    global age_buckets
+    global sessions
     logging.warn('Loading data files')
     np.random.seed(9)
     train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
@@ -205,7 +123,7 @@ def load_data():
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       train_full[USER_COLUMNS] \
                                                       , train_full[TARGET_COLUMN] \
-                                                      , test_size=0.3 \
+                                                      , test_size=TEST_SIZE \
                                                       , random_state=0)
 
     ## Read in data to predict for submission ##
@@ -219,10 +137,13 @@ def load_data():
     sessions = pd.read_csv(SESSIONS_FILE)
 
 # ### User data
-logging.warn('Processing user data features')
 def user_features():
     ''' Run feature engineering and cleaup for user features
     '''
+    global CAT_COLS
+    global NUM_COLS
+
+    logging.warn('Processing user data features')
     train_full.index = train_full['id']
     X_test.index = X_test['id']
     final_X_test.index = final_X_test['id']
@@ -293,6 +214,7 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
 
     if categorical:
+        global CAT_COLS
         ## Run first with category columns ##
         p = Pipeline([('im',im),('ohe',ohe)])
         X = p.fit_transform(
@@ -304,12 +226,13 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
         ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
         ohe_indices = p.named_steps['ohe'].feature_indices_
-        features = match_features(ohe_features,ohe_indices)
+        features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
         feature_names = list(X_train.loc[:,CAT_COLS].columns[features])
         logging.warn('Usable categorical features: \n\t{}'.format('\n\t'.join(feature_names)))
         if update_columns: CAT_COLS = feature_names
 
     if numeric:
+        global NUM_COLS
         ## Run again with numeric columns ##
         im2 = Imputer(strategy='mean') ; le = LabelEncoder()
         X = im2.fit_transform(X_train.iloc[:,:].loc[:,NUM_COLS])
@@ -319,7 +242,7 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
         ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
         ohe_indices = p.named_steps['ohe'].feature_indices_
-        features = match_features(ohe_features,ohe_indices)
+        features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
         feature_names = list(X_train.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format('\n\t'.join(feature_names)))
         if update_columns: NUM_COLS = feature_names
@@ -328,6 +251,7 @@ def user_component_islation(categorical=True,numeric=True,update_columns=False):
 def age_buckets():
     ''' Merge user buckets data file
     '''
+    global NUM_COLS
     age_buckets['age_merge'] = (np.floor(\
             np.array([int(re.split(r'[-+]',str(x))[0]) \
                 for x in age_buckets['age_bucket']])/10)*10).astype('int')
@@ -390,6 +314,8 @@ def age_buckets():
 def sessions(collapse=True,pca=True, lm=True):
     ''' Collapse and merge user session data
     '''
+    global CAT_COLS
+    global NUM_COLS
     logging.warn('Processing session data model')
     cf = ['action','action_type','action_detail','device_type']
     s = sessions[cf].copy().fillna('missing')
@@ -660,7 +586,89 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Writing to submission file')
         s3[['id','country','score']].to_csv('Data/submission.csv',index=False)
 
+def declare_args():
+    # ### Declare Args
+    global AGE_GENDER_BUCKETS_FILE
+    global COUNTRIES_FILE
+    global SAMPLE_SUBMISSION_FILE
+    global SESSIONS_FILE
+    global TEST_DATA_FINAL_FILE
+    global TRAIN_DATA_FILE
+    global TEST_SIZE
+    global USER_COLUMNS
+    global TARGET_COLUMN
+    global SESSION_COLUMNS
+    global AGE_BUCKET_COLUMNS
+    global CAT_COLS
+    global NUM_COLS
+
+    ## Files ##
+    AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
+    COUNTRIES_FILE = 'Data/countries.csv'
+    SAMPLE_SUBMISSION_FILE = 'Data/sample_submission.csv'
+    SESSIONS_FILE = 'Data/sessions.csv'
+    TEST_DATA_FINAL_FILE = 'Data/test_users.csv'
+    TRAIN_DATA_FILE = 'Data/train_users_2.csv'
+
+    ## Model args ##
+    TEST_SIZE = 0.4
+
+    ## Fields ##
+    USER_COLUMNS = [
+     'id',
+     'date_account_created',
+     'timestamp_first_active',
+     'date_first_booking',
+     'gender',
+     'age',
+     'signup_method',
+     'signup_flow',
+     'language',
+     'affiliate_channel',
+     'affiliate_provider',
+     'first_affiliate_tracked',
+     'signup_app',
+     'first_device_type',
+     'first_browser',
+    ]
+    TARGET_COLUMN = ['country_destination']
+
+    SESSION_COLUMNS = [
+     'user_id',
+     'action',
+     'action_type',
+     'action_detail',
+     'device_type',
+     'secs_elapsed'
+    ]
+
+    AGE_BUCKET_COLUMNS = [
+     'age_bucket',
+     'country_destination',
+     'gender',
+     'population_in_thousands',
+     'year'
+    ]
+
+    ## Define category and numeric fields for model ##
+    CAT_COLS = [
+     'gender',
+     'signup_method',
+     'signup_flow',
+     'language',
+     'affiliate_channel',
+     'affiliate_provider',
+     'first_affiliate_tracked',
+     'signup_app',
+     'first_device_type',
+     'first_browser',
+    ]
+    NUM_COLS = [
+        'age',
+    ]
+
 def main():
+    declare_args()
     load_data()
     user_features()
     user_component_islation(categorical=True,numeric=True,update_columns=False)
@@ -668,5 +676,5 @@ def main():
     sessions(collapse=True,pca=True, lm=True)
     final_model(test=True,grid_cv=False,save_results=False)
 
-if __name__=='__main__':
-    main()
+# if __name__=='__main__':
+#     main()
