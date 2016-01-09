@@ -51,8 +51,7 @@ import matplotlib.pyplot as plt
 # Grid Search
 from sklearn.grid_search import GridSearchCV
 
-# In[2]:
-
+# custom MCL function
 class MultiColumnLabelEncoder:
     ''' Create a class that encodes
         labels for a matrix of data
@@ -104,9 +103,32 @@ class MultiColumnLabelEncoder:
             output[colname] = le.inverse_transform(output[colname])
         return output
 
-# ## Declare Args
+# Function to match One Hot Encoder features
+def match_features(features, indices):
+    '''
+        INPUT: active features from OHE and feature indices
+        OUTPUT: array of 0s and 1s that matches original feature set
+    '''
+    a = indices
+    x = list(features)
+    val = x.pop(0)
+    o = np.empty(len(a)-1,dtype=bool)
+    max_indice = len(indices)-1
+    for i,z in enumerate(a):
+        c = a[min(i+1,max_indice)]
+        if val<c and val>=z:
+            o[i] = True
+            try:
+                val = x.pop(0)
+            except IndexError:
+                return o
+        elif val==c:
+            o[i] = True
+            return o
+        else:
+            o[i] = False
 
-# In[3]:
+# ## Declare Args
 
 ## Files ##
 AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
@@ -288,18 +310,39 @@ train_set.loc[train_set.iloc[22]['id'],['signup_method']] = 'weibo'
 ## Isolate components that are usable ##
 abc = AdaBoostClassifier(learning_rate=0.1)
 mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
-im2 = Imputer(strategy='mean') ; le = LabelEncoder()
+## Run first with category columns ##
 p = Pipeline([('im',im),('ohe',ohe)])
-X = p.fit_transform(
-        mcl.fit_transform(train_set.loc[:,CAT_COLS+NUM_COLS])
-    )
-Y = le.fit_transform(np.array(train_target).ravel())
-rfe = RFECV(abc, scoring='precision_weighted')
+_ = p.fit_transform(
+        mcl.fit_transform(train_set.loc[:,CAT_COLS])
+    ) # fit pipeline and MCL with all observations first
+X = p.transform(
+        mcl.transform(train_set.iloc[:,:].loc[:,CAT_COLS])
+    ) # trim original dataset to smaller sample
+Y = le.fit_transform(np.array(train_target.iloc[:,:]).ravel())
+rfe = RFECV(abc, scoring='precision_weighted', verbose=1, cv=2)
 rfe.fit( X , Y )
-features = rfe.support_
-fi = rfe.ranking_
-longging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
+logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
+ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
+ohe_indices = p.named_steps['ohe'].feature_indices_
+features = match_features(ohe_features,ohe_indices)
+feature_names = list(train_set.loc[:,CAT_COLS].columns[features])
+# CAT_COLS = feature_names
+logging.warn('Usable categorical features: \n{}'.format('\n\t'.join(feature_names)))
 
+## Run again with numeric columns ##
+im2 = Imputer(strategy='mean') ; le = LabelEncoder()
+_ = im2.fit_transform(train_set.loc[:,NUM_COLS])
+X = im2.transform(train_set.iloc[:,:].loc[:,NUM_COLS])
+Y = le.fit_transform(np.array(train_target.iloc[:,:]).ravel())
+rfe = RFECV(abc, scoring='precision_weighted', verbose=1, cv=2)
+rfe.fit( X , Y )
+logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
+ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
+ohe_indices = p.named_steps['ohe'].feature_indices_
+features = match_features(ohe_features,ohe_indices)
+feature_names = list(train_set.loc[:,CAT_COLS].columns[features])
+# NUM_COLS = feature_names
+logging.warn('Usable numeric features: \n{}'.format('\n\t'.join(feature_names)))
 
 # #### age buckets
 age_buckets['age_merge'] = (np.floor(\
