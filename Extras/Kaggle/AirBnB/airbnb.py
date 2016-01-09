@@ -286,7 +286,7 @@ def user_features():
 
 
 # ### Isolate components that are usable ##
-def user_component_islation(categorical=True,numeric=True):
+def user_component_islation(categorical=True,numeric=True,update_columns=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
     abc = AdaBoostClassifier(learning_rate=0.1)
@@ -306,8 +306,8 @@ def user_component_islation(categorical=True,numeric=True):
         ohe_indices = p.named_steps['ohe'].feature_indices_
         features = match_features(ohe_features,ohe_indices)
         feature_names = list(X_train.loc[:,CAT_COLS].columns[features])
-        # CAT_COLS = feature_names
         logging.warn('Usable categorical features: \n\t{}'.format('\n\t'.join(feature_names)))
+        if update_columns: CAT_COLS = feature_names
 
     if numeric:
         ## Run again with numeric columns ##
@@ -321,8 +321,8 @@ def user_component_islation(categorical=True,numeric=True):
         ohe_indices = p.named_steps['ohe'].feature_indices_
         features = match_features(ohe_features,ohe_indices)
         feature_names = list(X_train.loc[:,NUM_COLS].columns[features])
-        # NUM_COLS = feature_names
         logging.warn('Usable numeric features: \n\t{}'.format('\n\t'.join(feature_names)))
+        if update_columns: NUM_COLS = feature_names
 
 # #### age buckets
 def age_buckets():
@@ -476,8 +476,8 @@ def sessions(collapse=True,pca=True, lm=True):
         session_columns = list(sessions_new.iloc[:,features].columns)
     NUM_COLS += session_columns
 
-    if pca:
     ## PCA ##
+    if pca:
         logging.warn('Collapse session features with PCA')
         c = 3
         pca = PCA(n_components=c)
@@ -663,7 +663,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
 def main():
     load_data()
     user_features()
-    user_component_islation(categorical=True,numeric=True)
+    user_component_islation(categorical=True,numeric=True,update_columns=False)
     age_buckets()
     sessions(collapse=True,pca=True, lm=True)
     final_model(test=True,grid_cv=False,save_results=False)
