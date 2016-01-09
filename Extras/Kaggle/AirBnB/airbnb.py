@@ -103,6 +103,90 @@ class MultiColumnLabelEncoder:
             output[colname] = le.inverse_transform(output[colname])
         return output
 
+
+# ### Declare Args
+def declare_args():
+    ''' Declare global arguments and strings
+    '''
+    global AGE_GENDER_BUCKETS_FILE
+    global COUNTRIES_FILE
+    global SAMPLE_SUBMISSION_FILE
+    global SESSIONS_FILE
+    global TEST_DATA_FINAL_FILE
+    global TRAIN_DATA_FILE
+    global TEST_SIZE
+    global USER_COLUMNS
+    global TARGET_COLUMN
+    global SESSION_COLUMNS
+    global AGE_BUCKET_COLUMNS
+    global CAT_COLS
+    global NUM_COLS
+
+    ## Files ##
+    AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
+    COUNTRIES_FILE = 'Data/countries.csv'
+    SAMPLE_SUBMISSION_FILE = 'Data/sample_submission.csv'
+    SESSIONS_FILE = 'Data/sessions.csv'
+    TEST_DATA_FINAL_FILE = 'Data/test_users.csv'
+    TRAIN_DATA_FILE = 'Data/train_users_2.csv'
+
+    ## Model args ##
+    TEST_SIZE = 0.4
+
+    ## Fields ##
+    USER_COLUMNS = [
+     'id',
+     'date_account_created',
+     'timestamp_first_active',
+     'date_first_booking',
+     'gender',
+     'age',
+     'signup_method',
+     'signup_flow',
+     'language',
+     'affiliate_channel',
+     'affiliate_provider',
+     'first_affiliate_tracked',
+     'signup_app',
+     'first_device_type',
+     'first_browser',
+    ]
+    TARGET_COLUMN = ['country_destination']
+
+    SESSION_COLUMNS = [
+     'user_id',
+     'action',
+     'action_type',
+     'action_detail',
+     'device_type',
+     'secs_elapsed'
+    ]
+
+    AGE_BUCKET_COLUMNS = [
+     'age_bucket',
+     'country_destination',
+     'gender',
+     'population_in_thousands',
+     'year'
+    ]
+
+    ## Define category and numeric fields for model ##
+    CAT_COLS = [
+     'gender',
+     'signup_method',
+     'signup_flow',
+     'language',
+     'affiliate_channel',
+     'affiliate_provider',
+     'first_affiliate_tracked',
+     'signup_app',
+     'first_device_type',
+     'first_browser',
+    ]
+    NUM_COLS = [
+        'age',
+    ]
+
 # ### Read data
 def load_data():
     ''' read in data files
@@ -231,7 +315,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
         ohe_indices = p.named_steps['ohe'].feature_indices_
         features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
-        feature_names = list(X_train.loc[:,CAT_COLS].columns[features])
+        feature_names = list(train_full.loc[:,CAT_COLS].columns[features])
         logging.warn('Usable categorical features: \n\t{}'.format('\n\t'.join(feature_names)))
         if update_columns: CAT_COLS = feature_names
 
@@ -246,7 +330,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         rfe.fit( X , Y )
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
         features = rfe.support_
-        feature_names = list(X_train.loc[:,NUM_COLS].columns[features])
+        feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format('\n\t'.join(feature_names)))
         if update_columns: NUM_COLS = feature_names
 
@@ -272,8 +356,6 @@ def age_bucket(update_columns=True):
     dx = np.vectorize(lambda x: am[int(x)-1])
     for c in set(countries['country_destination']):
         for g in genders:
-            global train_full
-            global final_X_test
             train_full['age_merge'+'-'+c+'-'+g] = \
                                 pd.Series(dx(tf)) \
                                     .astype('int') \
@@ -298,8 +380,6 @@ def age_bucket(update_columns=True):
 
     for c in set(countries['country_destination']):
         for g in genders:
-            global train_full
-            global final_X_test
             train_full = pd.merge(
                 train_full \
                  , age_buckets \
@@ -387,7 +467,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
         session_columns = list(sessions_new.iloc[:,features].columns)
     else:
         session_columns = list(sessions_new.iloc[:,features].columns)
-    if update_columns: global NUM_COLS; NUM_COLS += session_columns
+    if update_columns: NUM_COLS += session_columns
 
     ## PCA ##
     if pca:
@@ -403,7 +483,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
                             , index = final_X_test.index \
                         )
         logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
-        if update_columns: global NUM_COLS; NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
+        if update_columns: NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
         if lm:
             ## Create prediction model for PCA features ##
@@ -489,7 +569,7 @@ def sessions(collapse=True,pca=True, lm=True, update_columns=True):
             X_test = pd.concat([X_test,tst_pca],axis=1)
             final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
 
-            if update_columns: global NUM_COLS; NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
+            if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
 # ### Run final model ##
 def final_model(test=True,grid_cv=False,save_results=True):
@@ -580,87 +660,6 @@ def final_model(test=True,grid_cv=False,save_results=True):
 
         logging.warn('Writing to submission file')
         s3[['id','country','score']].to_csv('Data/submission.csv',index=False)
-
-def declare_args():
-    # ### Declare Args
-    global AGE_GENDER_BUCKETS_FILE
-    global COUNTRIES_FILE
-    global SAMPLE_SUBMISSION_FILE
-    global SESSIONS_FILE
-    global TEST_DATA_FINAL_FILE
-    global TRAIN_DATA_FILE
-    global TEST_SIZE
-    global USER_COLUMNS
-    global TARGET_COLUMN
-    global SESSION_COLUMNS
-    global AGE_BUCKET_COLUMNS
-    global CAT_COLS
-    global NUM_COLS
-
-    ## Files ##
-    AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
-    COUNTRIES_FILE = 'Data/countries.csv'
-    SAMPLE_SUBMISSION_FILE = 'Data/sample_submission.csv'
-    SESSIONS_FILE = 'Data/sessions.csv'
-    TEST_DATA_FINAL_FILE = 'Data/test_users.csv'
-    TRAIN_DATA_FILE = 'Data/train_users_2.csv'
-
-    ## Model args ##
-    TEST_SIZE = 0.4
-
-    ## Fields ##
-    USER_COLUMNS = [
-     'id',
-     'date_account_created',
-     'timestamp_first_active',
-     'date_first_booking',
-     'gender',
-     'age',
-     'signup_method',
-     'signup_flow',
-     'language',
-     'affiliate_channel',
-     'affiliate_provider',
-     'first_affiliate_tracked',
-     'signup_app',
-     'first_device_type',
-     'first_browser',
-    ]
-    TARGET_COLUMN = ['country_destination']
-
-    SESSION_COLUMNS = [
-     'user_id',
-     'action',
-     'action_type',
-     'action_detail',
-     'device_type',
-     'secs_elapsed'
-    ]
-
-    AGE_BUCKET_COLUMNS = [
-     'age_bucket',
-     'country_destination',
-     'gender',
-     'population_in_thousands',
-     'year'
-    ]
-
-    ## Define category and numeric fields for model ##
-    CAT_COLS = [
-     'gender',
-     'signup_method',
-     'signup_flow',
-     'language',
-     'affiliate_channel',
-     'affiliate_provider',
-     'first_affiliate_tracked',
-     'signup_app',
-     'first_device_type',
-     'first_browser',
-    ]
-    NUM_COLS = [
-        'age',
-    ]
 
 def run():
     declare_args(); load_data()
