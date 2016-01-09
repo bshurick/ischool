@@ -28,6 +28,7 @@ from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.feature_selection import RFECV
+from sklearn import cross_validation
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -122,11 +123,11 @@ def match_features(features, indices):
                 val = x.pop(0)
             except IndexError:
                 return o
-        elif val==c:
+        elif val==z:
             o[i] = True
-            return o
         else:
             o[i] = False
+    return o
 
 # ## Declare Args
 
@@ -203,11 +204,11 @@ logging.warn('Loading data files')
 ## Read user data ##
 np.random.seed(9)
 train_full = pd.read_csv(TRAIN_DATA_FILE).sort_values('id')
-train_full = train_full.iloc[np.random.permutation(len(train_full))]
-train_set, train_target = train_full[TEST_N:][USER_COLUMNS+TARGET_COLUMN] \
-                                            , train_full[TEST_N:][TARGET_COLUMN]
-test_set, test_target = train_full[:TEST_N][USER_COLUMNS+TARGET_COLUMN] \
-                                            , train_full[:TEST_N][TARGET_COLUMN]
+train_set, test_set, train_target, test_target = cross_validation.train_test_split( \
+                                                  train_full[USER_COLUMNS+TARGET_COLUMN] \
+                                                  , train_full[TEST_N:][TARGET_COLUMN] \
+                                                  , test_size=0.3 \
+                                                  , random_state=0)
 
 ## Read in data to predict for submission ##
 final_test_set = pd.read_csv(TEST_DATA_FINAL_FILE)
@@ -308,6 +309,7 @@ final_test_set['days_to_first_booking'] = final_test_set['days_to_first_booking'
 train_set.loc[train_set.iloc[22]['id'],['signup_method']] = 'weibo'
 
 ## Isolate components that are usable ##
+N=100000
 abc = AdaBoostClassifier(learning_rate=0.1)
 mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
 ## Run first with category columns ##
@@ -316,9 +318,9 @@ _ = p.fit_transform(
         mcl.fit_transform(train_set.loc[:,CAT_COLS])
     ) # fit pipeline and MCL with all observations first
 X = p.transform(
-        mcl.transform(train_set.iloc[:,:].loc[:,CAT_COLS])
+        mcl.transform(train_set.iloc[:N,:].loc[:,CAT_COLS])
     ) # trim original dataset to smaller sample
-Y = le.fit_transform(np.array(train_target.iloc[:,:]).ravel())
+Y = le.fit_transform(np.array(train_target.iloc[:N,:]).ravel())
 rfe = RFECV(abc, scoring='precision_weighted', verbose=1, cv=2)
 rfe.fit( X , Y )
 logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
@@ -327,22 +329,22 @@ ohe_indices = p.named_steps['ohe'].feature_indices_
 features = match_features(ohe_features,ohe_indices)
 feature_names = list(train_set.loc[:,CAT_COLS].columns[features])
 # CAT_COLS = feature_names
-logging.warn('Usable categorical features: \n{}'.format('\n\t'.join(feature_names)))
+logging.warn('Usable categorical features: \n\t{}'.format('\n\t'.join(feature_names)))
 
 ## Run again with numeric columns ##
 im2 = Imputer(strategy='mean') ; le = LabelEncoder()
 _ = im2.fit_transform(train_set.loc[:,NUM_COLS])
-X = im2.transform(train_set.iloc[:,:].loc[:,NUM_COLS])
-Y = le.fit_transform(np.array(train_target.iloc[:,:]).ravel())
+X = im2.transform(train_set.iloc[:N,:].loc[:,NUM_COLS])
+Y = le.fit_transform(np.array(train_target.iloc[:N,:]).ravel())
 rfe = RFECV(abc, scoring='precision_weighted', verbose=1, cv=2)
 rfe.fit( X , Y )
 logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
 ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
 ohe_indices = p.named_steps['ohe'].feature_indices_
 features = match_features(ohe_features,ohe_indices)
-feature_names = list(train_set.loc[:,CAT_COLS].columns[features])
+feature_names = list(train_set.loc[:,NUM_COLS].columns[features])
 # NUM_COLS = feature_names
-logging.warn('Usable numeric features: \n{}'.format('\n\t'.join(feature_names)))
+logging.warn('Usable numeric features: \n\t{}'.format('\n\t'.join(feature_names)))
 
 # #### age buckets
 age_buckets['age_merge'] = (np.floor(\
