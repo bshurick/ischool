@@ -137,11 +137,9 @@ def load_data():
     sessions = pd.read_csv(SESSIONS_FILE)
 
 # ### User data
-def user_features():
+def user_features(update_columns=True):
     ''' Run feature engineering and cleaup for user features
     '''
-    global CAT_COLS
-    global NUM_COLS
     global train_full
     global final_X_test
 
@@ -176,17 +174,20 @@ def user_features():
     final_X_test['days_ago_first_booking'] = (DT.datetime.now() - final_X_test['date_first_booking']).dt.days
 
     ## Add new columns to model cols ##
-    CAT_COLS += [
-        'year_first_booking',
-        'month_first_booking',
-        'year_created',
-        'month_created',
-    ]
-    NUM_COLS += [
-        'days_to_first_booking',
-        'days_ago_created',
-        'days_ago_first_booking',
-    ]
+    if update_columns:
+        global CAT_COLS
+        global NUM_COLS
+        CAT_COLS += [
+            'year_first_booking',
+            'month_first_booking',
+            'year_created',
+            'month_created',
+        ]
+        NUM_COLS += [
+            'days_to_first_booking',
+            'days_ago_created',
+            'days_ago_first_booking',
+        ]
 
     ## Add special values for nulls for categorical fields
     train_full['year_first_booking'].fillna(1970,inplace=True)
@@ -247,39 +248,38 @@ def user_component_isolation(categorical=True,numeric=True,update_columns=False)
         if update_columns: NUM_COLS = feature_names
 
 # #### age buckets
-def age_buckets():
+def age_bucket(update_columns=True):
     ''' Merge user buckets data file
     '''
-    global NUM_COLS
     global train_full
     global final_X_test
+    global age_buckets
 
-    age_buckets['age_merge'] = (np.floor(\
-            np.array([int(re.split(r'[-+]',str(x))[0]) \
-                for x in age_buckets['age_bucket']])/10)*10).astype('int')
+    genders = set(age_buckets['gender'])
+    age_buckets['age_merge'] = np.array([int(re.split(r'[-+]',str(x))[0]) \
+                for x in age_buckets['age_bucket']]).astype('int')
     age_buckets.index = age_buckets['age_merge'].astype('string')\
             +'-'+age_buckets['country_destination']\
             +'-'+age_buckets['gender'].str.lower()
 
+    am = sorted(set(age_buckets['age_merge']))
+    tf = np.digitize(train_full['age'],am)
+    fx = np.digitize(final_X_test['age'],am)
+    dx = np.vectorize(lambda x: am[int(x)-1])
     for c in set(countries['country_destination']):
-        train_full['age_merge'+'-'+c] = (
-                            np.floor(\
-                                train_full['age']/10)*10\
-                            )\
-                                .fillna(0)\
-                                .astype('int')\
-                                .astype('string') \
-                            +'-'+c \
-                            +'-'+train_full['gender'].str.lower()
-        final_X_test['age_merge'+'-'+c] = (
-                            np.floor(\
-                                final_X_test['age']/10)*10\
-                            )\
-                                .fillna(0)\
-                                .astype('int')\
-                                .astype('string') \
-                            +'-'+c \
-                            +'-'+X_test['gender'].str.lower()
+        for g in genders:
+            train_full['age_merge'+'-'+c+'-'+g] = \
+                                pd.Series(dx(tf)) \
+                                    .astype('int') \
+                                    .astype('string') \
+                                +'-'+c \
+                                +'-'+train_full['gender'].str.lower()
+            final_X_test['age_merge'+'-'+c+'-'+g] = \
+                                pd.Series(dx(fx)) \
+                                    .astype('int') \
+                                    .astype('string') \
+                                +'-'+c \
+                                +'-'+final_X_test['gender'].str.lower()
 
     age_buckets = age_buckets[[
             'age_merge' \
@@ -291,33 +291,32 @@ def age_buckets():
     age_buckets.index = pd.Series([ str(i[0])+'-'+i[1]+'-'+i[2] for i in age_buckets.index])
 
     for c in set(countries['country_destination']):
-        train_full = pd.merge(
-            train_full \
-             , age_buckets \
-             , left_on=['age_merge'+'-'+c] \
-             , right_index=True \
-             , how='outer' \
-             , suffixes=(c,c)
-        )
-        final_X_test = pd.merge(
-            final_X_test \
-             , age_buckets \
-             , left_on=['age_merge'+'-'+c] \
-             , right_index=True \
-             , how='left' \
-             , suffixes=(c,c)
-        )
-    train_full = train_full.drop_duplicates(['id'])
-    final_X_test = final_X_test.drop_duplicates(['id'])
+        for g in genders:
+            train_full = pd.merge(
+                train_full \
+                 , age_buckets \
+                 , left_on=['age_merge'+'-'+c+'-'+g] \
+                 , right_index=True \
+                 , how='left' \
+                 , suffixes=(c,c)
+            )
+            final_X_test = pd.merge(
+                final_X_test \
+                 , age_buckets \
+                 , left_on=['age_merge'+'-'+c+'-'+g] \
+                 , right_index=True \
+                 , how='left' \
+                 , suffixes=(c,c)
+            )
 
-    NUM_COLS += [ 'population_in_thousands'+c for c in set(countries['country_destination']) ]
+    if update_columns:
+        global NUM_COLS
+        NUM_COLS += [ 'population_in_thousands'+c for c in set(countries['country_destination']) ]
 
 # #### Sessions
-def sessions(collapse=True,pca=True, lm=True):
+def sessions(collapse=True,pca=True, lm=True, update_columns=True):
     ''' Collapse and merge user session data
     '''
-    global CAT_COLS
-    global NUM_COLS
     global train_full
     global final_X_test
 
@@ -405,7 +404,7 @@ def sessions(collapse=True,pca=True, lm=True):
         ## Add final set of new session columns ##
     else:
         session_columns = list(sessions_new.iloc[:,features].columns)
-    NUM_COLS += session_columns
+    if update_columns: NUM_COLS += session_columns
 
     ## PCA ##
     if pca:
@@ -421,7 +420,7 @@ def sessions(collapse=True,pca=True, lm=True):
                             , index = final_X_test.index \
                         )
         logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
-        NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
+        if update_columns: NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
         if lm:
             ## Create prediction model for PCA features ##
@@ -507,12 +506,20 @@ def sessions(collapse=True,pca=True, lm=True):
             X_test = pd.concat([X_test,tst_pca],axis=1)
             final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
 
-            NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
+            if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
 # ### Run final model ##
 def final_model(test=True,grid_cv=False,save_results=True):
     ''' execute final model
     '''
+    global train_full
+    global target_full
+    global X_train
+    global X_test
+    global Y_train
+    global Y_test
+    global final_X_test
+
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
     le = LabelEncoder()
@@ -674,11 +681,11 @@ def declare_args():
 
 def run():
     declare_args(); load_data()
-    user_features()
-    user_component_isolation(categorical=False,numeric=True,update_columns=False)
-    age_buckets()
-    sessions(collapse=True,pca=True, lm=True)
-    final_model(test=True,grid_cv=False,save_results=False)
+    user_features(update_columns=True)
+    user_component_isolation(categorical=True, numeric=True, update_columns=True)
+    age_bucket(update_columns=True)
+    sessions(collapse=True, pca=True, lm=True, update_columns=True)
+    final_model(test=True, grid_cv=False, save_results=False)
 
 # if __name__=='__main__':
 #     run()
