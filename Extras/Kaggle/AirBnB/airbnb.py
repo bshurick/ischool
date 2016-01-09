@@ -59,6 +59,7 @@ class MultiColumnLabelEncoder:
     '''
     def __init__(self, columns = None):
         self.columns = columns # array of column names to encode
+        self.encoders = {}
 
     def fit(self,X,y=None):
         return self # not relevant here
@@ -71,7 +72,7 @@ class MultiColumnLabelEncoder:
     def transform(self,X):
         '''
         Transforms columns of X specified in self.columns using
-        LabelEncoder().
+        LabelEncoder(). NOTE: Assumes use of Pandas DataFrame
         '''
         numerics = [np.float16, np.float32, np.float64]
         ints = [np.int16, np.int32, np.int64]
@@ -79,19 +80,29 @@ class MultiColumnLabelEncoder:
 
         for colname,col in output.iteritems():
             if col.dtype not in numerics+ints:
-                # Turn text columns into ints
-                output[colname] = LabelEncoder().fit_transform(output[colname])
-            elif col.dtype in numerics:
-                # handle floats with scaling
-                # output[colname] = scale(output[colname])
+                le = LabelEncoder()
+                output[colname] = le.fit_transform(output[colname])
+                self.encoders[colname] = le
+            elif col.dtype in numerics+ints:
                 pass
-            elif col.dtype in ints:
-                pass # leave integers alone
         return output
 
     def fit_transform(self,X,y=None):
         return self.fit(X,y).transform(X)
 
+    def inverse_transform(self, X, y=None):
+        '''
+        Inverse of transform function
+        NOTE: still assumes use of pandas DataFrame
+        '''
+        numerics = [np.float16, np.float32, np.float64]
+        ints = [np.int16, np.int32, np.int64]
+        output = X.copy()
+
+        for colname in self.encoders:
+            le = self.encoders[colname]
+            output[colname] = le.inverse_transform(output[colname])
+        return output
 
 # ## Declare Args
 
@@ -147,8 +158,6 @@ AGE_BUCKET_COLUMNS = [
 
 ## Define category and numeric fields for model ##
 CAT_COLS = [
- 'date_account_created',
- 'date_first_booking',
  'gender',
  'signup_method',
  'signup_flow',
@@ -209,6 +218,8 @@ train_set['month_created'] = train_set['date_account_created'].dt.month
 train_set['year_first_booking'] = train_set['date_first_booking'].dt.year
 train_set['month_first_booking'] = train_set['date_first_booking'].dt.month
 train_set['days_to_first_booking'] = train_set['date_first_booking']-train_set['date_account_created']
+train_set['days_ago_created'] = (DT.datetime.now() - train_set['date_account_created']).dt.days
+train_set['days_ago_first_booking'] = (DT.datetime.now() - train_set['date_first_booking']).dt.days
 
 ## repeat with test ##
 test_set['date_account_created'] = pd.to_datetime(test_set['date_account_created'])
@@ -218,6 +229,8 @@ test_set['month_created'] = test_set['date_account_created'].dt.month
 test_set['year_first_booking'] = test_set['date_first_booking'].dt.year
 test_set['month_first_booking'] = test_set['date_first_booking'].dt.month
 test_set['days_to_first_booking'] = test_set['date_first_booking']-test_set['date_account_created']
+test_set['days_ago_created'] = (DT.datetime.now() - test_set['date_account_created']).dt.days
+test_set['days_ago_first_booking'] = (DT.datetime.now() - test_set['date_first_booking']).dt.days
 
 ## repeat with final test ##
 final_test_set['date_account_created'] = pd.to_datetime(final_test_set['date_account_created'])
@@ -227,6 +240,8 @@ final_test_set['month_created'] = final_test_set['date_account_created'].dt.mont
 final_test_set['year_first_booking'] = final_test_set['date_first_booking'].dt.year
 final_test_set['month_first_booking'] = final_test_set['date_first_booking'].dt.month
 final_test_set['days_to_first_booking'] = final_test_set['date_first_booking']-test_set['date_account_created']
+final_test_set['days_ago_created'] = (DT.datetime.now() - final_test_set['date_account_created']).dt.days
+final_test_set['days_ago_first_booking'] = (DT.datetime.now() - final_test_set['date_first_booking']).dt.days
 
 ## Add new columns to model cols ##
 CAT_COLS += [
@@ -235,24 +250,25 @@ CAT_COLS += [
     'year_created',
     'month_created',
 ]
-NUM_COLS += ['days_to_first_booking']
+NUM_COLS += [
+    'days_to_first_booking',
+    'days_ago_created',
+    'days_ago_first_booking',
+]
 
 ## Add special values for nulls for categorical fields
 train_set['year_first_booking'].fillna(1970,inplace=True)
 train_set['month_first_booking'].fillna(1970,inplace=True)
-train_set['days_to_first_booking'].fillna(-1,inplace=True)
 train_set['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
 
 ## repeat with test ##
 test_set['year_first_booking'].fillna(1970,inplace=True)
 test_set['month_first_booking'].fillna(0,inplace=True)
-test_set['days_to_first_booking'].fillna(-1,inplace=True)
 test_set['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
 
 ## Repeat with final test ##
 final_test_set['year_first_booking'].fillna(1970,inplace=True)
 final_test_set['month_first_booking'].fillna(0,inplace=True)
-final_test_set['days_to_first_booking'].fillna(-1,inplace=True)
 final_test_set['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
 
 ## add new date features ##
@@ -268,6 +284,21 @@ final_test_set['days_to_first_booking'] = final_test_set['days_to_first_booking'
 ## Choose random record in training data to assign 'weibo' signup method ##
 ## This avoids issues later with one hot encoding ##
 train_set.loc[train_set.iloc[22]['id'],['signup_method']] = 'weibo'
+
+## Isolate components that are usable ##
+abc = AdaBoostClassifier(learning_rate=0.1)
+mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+im2 = Imputer(strategy='mean') ; le = LabelEncoder()
+p = Pipeline([('im',im),('ohe',ohe)])
+X = p.fit_transform(
+        mcl.fit_transform(train_set.loc[:,CAT_COLS+NUM_COLS])
+    )
+Y = le.fit_transform(np.array(train_target).ravel())
+rfe = RFECV(abc, scoring='precision_weighted')
+rfe.fit( X , Y )
+features = rfe.support_
+fi = rfe.ranking_
+longging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
 
 
 # #### age buckets
@@ -395,26 +426,48 @@ merged = pd.merge(\
 
 ## Extract most importance features ##
 logging.warn('Extracting meaningful features')
-abc = AdaBoostClassifier(learning_rate=0.1)
-rfe = RFECV(abc, scoring='precision_weighted')
-le = LabelEncoder()
-X = np.array(merged)[:,:-1]
-Y = le.fit_transform(np.array(merged)[:,-1:].ravel())
-rfe.fit( X , Y )
-fi = rfe.ranking_
-components = 20
-features = np.argsort(fi)[::-1][:components]
-
-# logging.warn('Collapsing feature set using PCA')
-# pca = PCA(n_components=components)
-# pca_features = pd.DataFrame(pca.fit_transform(np.array(sessions_new)[:,features])\
-#                             , index = sessions_new.index)
-# logging.warn('Session PCA explained variance '+str(np.sum(pca.explained_variance_ratio_)))
-lm_features = sessions_new.iloc[:,features]
-lm_features.columns = range(components)
+# components = 20
+# abc = AdaBoostClassifier(learning_rate=0.1)
+# rfe = RFECV(abc, scoring='precision_weighted')
+# le = LabelEncoder()
+# X = np.array(merged)[:,:-1]
+# Y = le.fit_transform(np.array(merged)[:,-1:].ravel())
+# rfe.fit( X , Y )
+# features = rfe.support_
+# fi = rfe.ranking_
+# longging.warn('Optimal number of session features: {}'.format(rfe.n_features_))
+# session_columns = list(sessions_new.iloc[:,features].columns)
+session_columns = ['session_85',
+                     'session_99',
+                     'session_118',
+                     'session_141',
+                     'session_153',
+                     'session_213',
+                     'session_276',
+                     'session_281',
+                     'session_284',
+                     'session_290',
+                     'session_298',
+                     'session_300',
+                     'session_344',
+                     'session_361',
+                     'session_365',
+                     'session_369',
+                     'session_409',
+                     'session_441',
+                     'session_463',
+                     'session_488',
+                     'session_514',
+                     'session_515',
+                     'session_516',
+                     'session_538',
+                     'session_539']
+logging.warn('Collapsing feature set using PCA')
+lm_features = sessions_new.loc[:,session_columns]
 
 ## Create prediction model for features ##
 logging.warn('Creating regression model for session features')
+components = len(session_columns)
 
 ## Split out category and numeric columns ##
 tr_cat = train_set.loc[:,CAT_COLS]
@@ -469,9 +522,9 @@ mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
 mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
 
 lm_cvs = [ ElasticNetCV( \
-            l1_ratio=[.1, .5, .7, .9, .95, .99, 1] \
+            l1_ratio=[.1, .5, .7, .9, .95, 1] \
             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
-            , max_iter=1200, n_jobs=2
+            , max_iter=1000, n_jobs=2
         ) \
         for l in np.arange(components) ]
 for i,lm in enumerate(lm_cvs):
@@ -503,17 +556,17 @@ for i in range(components):
 
 ## PCA ##
 logging.warn('Collapse session features with PCA')
-c = 7
+c = 3
 pca = PCA(n_components=c)
-tr_pca = pd.DataFrame( pca.fit_transform(train_set.loc[:,sessions_new.columns]) \
+tr_pca = pd.DataFrame( pca.fit_transform(train_set.loc[:,session_columns]) \
                     , columns = ['pca_session_' + str(i) for i in range(c)] \
                     , index = train_set.index \
                 )
-tst_pca = pd.DataFrame( pca.transform(test_set.loc[:,sessions_new.columns]) \
+tst_pca = pd.DataFrame( pca.transform(test_set.loc[:,session_columns]) \
                     , columns = ['pca_session_' + str(i) for i in range(c)]
                     , index = test_set.index \
                 )
-fnl_pca = pd.DataFrame( pca.transform(final_test_set.loc[:,sessions_new.columns]) \
+fnl_pca = pd.DataFrame( pca.transform(final_test_set.loc[:,session_columns]) \
                     , columns = ['pca_session_' + str(i) for i in range(c)]
                     , index = final_test_set.index \
                 )
@@ -523,7 +576,8 @@ train_set = pd.concat([train_set,tr_pca],axis=1)
 test_set = pd.concat([test_set,tst_pca],axis=1)
 final_test_set = pd.concat([final_test_set,fnl_pca],axis=1)
 
-NUM_COLS += list( sessions_new.columns )
+## Add final set of new session columns ##
+NUM_COLS += session_columns
 NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
