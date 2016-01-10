@@ -474,11 +474,12 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
         logging.warn('Collapse session features with PCA')
         c = 3
         pca = PCA(n_components=c)
-        tr_pca = pd.DataFrame( pca.fit_transform(train_full.loc[:,session_columns]) \
+        ss = StandardScaler()
+        tr_pca = pd.DataFrame( pca.fit_transform(ss.fit_transform(train_full.loc[:,session_columns])) \
                             , columns = ['pca_session_' + str(i) for i in range(c)] \
                             , index = train_full.index \
                         )
-        fnl_pca = pd.DataFrame( pca.transform(final_X_test.loc[:,session_columns]) \
+        fnl_pca = pd.DataFrame( ss.fit_transform(pca.transform(final_X_test.loc[:,session_columns])) \
                             , columns = ['pca_session_' + str(i) for i in range(c)]
                             , index = final_X_test.index \
                         )
