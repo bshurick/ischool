@@ -232,6 +232,10 @@ def user_features(update_columns=True):
     train_full.index = train_full['id']
     final_X_test.index = final_X_test['id']
 
+    ## Change signup method for a random observation ##
+    ## New signup method 'weibo' exists in final dataset ##
+    train_full.loc[train_full.iloc[100,:]['id'],'signup_method'] = 'weibo'
+
     ## Clean up unreasonable values
     train_full.loc[train_full['age']>115,['age']] = np.nan
     final_X_test.loc[final_X_test['age']>115,['age']] = np.nan
@@ -402,7 +406,7 @@ def attach_age_buckets(update_columns=True):
         NUM_COLS += [ p+g for p,g in product([ 'population_in_thousands'+c for c in set(countries['country_destination']) ],genders) ]
 
 # #### Sessions
-def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
+def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=5):
     ''' Collapse and merge user session data
     '''
     global train_full
@@ -466,14 +470,123 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
         fi = rfe.ranking_
         logging.warn('Optimal number of session features: {}'.format(rfe.n_features_))
         session_columns = list(sessions_new.iloc[:,features].columns)
+        logging.warn('Meaningful columns: \n\r{}'.format('\n\t'.join(session_columns)))
     else:
-        session_columns = list(sessions_new.columns)
+        # session_columns = list(sessions_new.columns)
+        ## Already ran ## 
+        session_columns = ['session_14',
+                             'session_15',
+                             'session_16',
+                             'session_17',
+                             'session_18',
+                             'session_19',
+                             'session_20',
+                             'session_21',
+                             'session_22',
+                             'session_23',
+                             'session_24',
+                             'session_25',
+                             'session_26',
+                             'session_27',
+                             'session_28',
+                             'session_29',
+                             'session_30',
+                             'session_31',
+                             'session_32',
+                             'session_33',
+                             'session_34',
+                             'session_35',
+                             'session_36',
+                             'session_37',
+                             'session_38',
+                             'session_39',
+                             'session_40',
+                             'session_41',
+                             'session_42',
+                             'session_43',
+                             'session_44',
+                             'session_45',
+                             'session_46',
+                             'session_47',
+                             'session_48',
+                             'session_49',
+                             'session_50',
+                             'session_51',
+                             'session_52',
+                             'session_53',
+                             'session_54',
+                             'session_55',
+                             'session_85',
+                             'session_163',
+                             'session_174',
+                             'session_175',
+                             'session_176',
+                             'session_197',
+                             'session_200',
+                             'session_213',
+                             'session_226',
+                             'session_233',
+                             'session_300',
+                             'session_331',
+                             'session_332',
+                             'session_333',
+                             'session_334',
+                             'session_335',
+                             'session_336',
+                             'session_337',
+                             'session_338',
+                             'session_339',
+                             'session_340',
+                             'session_341',
+                             'session_342',
+                             'session_343',
+                             'session_344',
+                             'session_345',
+                             'session_346',
+                             'session_347',
+                             'session_348',
+                             'session_349',
+                             'session_350',
+                             'session_351',
+                             'session_352',
+                             'session_353',
+                             'session_354',
+                             'session_355',
+                             'session_356',
+                             'session_357',
+                             'session_358',
+                             'session_359',
+                             'session_360',
+                             'session_361',
+                             'session_362',
+                             'session_363',
+                             'session_364',
+                             'session_365',
+                             'session_366',
+                             'session_369',
+                             'session_409',
+                             'session_413',
+                             'session_414',
+                             'session_415',
+                             'session_417',
+                             'session_419',
+                             'session_425',
+                             'session_427',
+                             'session_430',
+                             'session_435',
+                             'session_441',
+                             'session_445',
+                             'session_459',
+                             'session_460',
+                             'session_461',
+                             'session_462',
+                             'session_463']
     if update_columns: NUM_COLS += session_columns
 
     ## PCA ##
     if pca:
         logging.warn('Collapse session features with PCA')
-        c = 3
+        c = pca_n
         pca = PCA(n_components=c)
         ss = StandardScaler()
         tr_pca = pd.DataFrame( pca.fit_transform(ss.fit_transform(train_full.loc[:,session_columns])) \
@@ -667,7 +780,7 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=True, pca=True, lm=True, update_columns=True)
+    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
     component_isolation(categorical=True, numeric=True, update_columns=True)
     final_model(test=True, grid_cv=False, save_results=True)
 
