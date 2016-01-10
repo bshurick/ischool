@@ -408,6 +408,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
     global train_full
     global final_X_test
     global sessions
+    global NUM_COLS
 
     logging.warn('Processing session data model')
     cf = ['action','action_type','action_detail','device_type']
@@ -447,7 +448,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
     merged = pd.merge(\
                 sessions_new\
                 , target\
-                , how='left'\
+                , how='inner'\
                 , left_index=True
                 , right_index=True
              )
