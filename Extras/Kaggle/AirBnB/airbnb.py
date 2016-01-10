@@ -473,7 +473,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
         logging.warn('Meaningful columns: \n\r{}'.format('\n\t'.join(session_columns)))
     else:
         # session_columns = list(sessions_new.columns)
-        ## Already ran ## 
+        ## Already ran ##
         session_columns = ['session_14',
                              'session_15',
                              'session_16',
@@ -593,7 +593,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
                             , columns = ['pca_session_' + str(i) for i in range(c)] \
                             , index = train_full.index \
                         )
-        fnl_pca = pd.DataFrame( ss.fit_transform(pca.transform(final_X_test.loc[:,session_columns])) \
+        fnl_pca = pd.DataFrame( pca.transform(ss.transform(final_X_test.loc[:,session_columns])) \
                             , columns = ['pca_session_' + str(i) for i in range(c)]
                             , index = final_X_test.index \
                         )
