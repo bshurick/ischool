@@ -463,7 +463,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True):
         rfe.fit( X , Y )
         features = rfe.support_
         fi = rfe.ranking_
-        longging.warn('Optimal number of session features: {}'.format(rfe.n_features_))
+        logging.warn('Optimal number of session features: {}'.format(rfe.n_features_))
         session_columns = list(sessions_new.iloc[:,features].columns)
     else:
         session_columns = list(sessions_new.columns)
