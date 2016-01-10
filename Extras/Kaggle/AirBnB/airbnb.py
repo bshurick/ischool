@@ -358,20 +358,26 @@ def attach_age_buckets(update_columns=True):
     tf = np.digitize(train_full['age'],am)
     fx = np.digitize(final_X_test['age'],am)
     dx = np.vectorize(lambda x: am[int(x)-1])
+    tfdx = dx(tf)
+    fxdx = dx(fx)
     for c in set(countries['country_destination']):
         for g in genders:
-            train_full['age_merge'+'-'+c+'-'+g] = \
-                                pd.Series(dx(tf)) \
-                                    .astype('int') \
-                                    .astype('string') \
-                                +'-'+c \
-                                +'-'+g
-            final_X_test['age_merge'+'-'+c+'-'+g] = \
-                                pd.Series(dx(fx)) \
-                                    .astype('int') \
-                                    .astype('string') \
-                                +'-'+c \
-                                +'-'+g
+            z = train_full['gender'].str.lower()==g
+            p = pd.Series(tfdx) \
+                .astype('int') \
+                .astype('string') \
+                    +'-'+c \
+                    +'-'+g
+            p.index = train_full.index
+            train_full.loc[z,'age_merge'+'-'+c+'-'+g] = p
+            z = final_X_test['gender'].str.lower()==g
+            p = pd.Series(fxdx) \
+                .astype('int') \
+                .astype('string') \
+                    +'-'+c \
+                    +'-'+g
+            p.index = final_X_test.index
+            final_X_test.loc[z,'age_merge'+'-'+c+'-'+g] = p
 
     age_buckets = age_buckets[[
             'age_merge' \
@@ -384,22 +390,26 @@ def attach_age_buckets(update_columns=True):
 
     for c in set(countries['country_destination']):
         for g in genders:
+            z = train_full['gender'].str.lower()==g
             train_full = pd.merge(
                 train_full \
                  , age_buckets \
                  , left_on=['age_merge'+'-'+c+'-'+g] \
                  , right_index=True \
-                 , how='left' \
-                 , suffixes=(c+g,c+g)
+                 , left_index=False \
+                 , how='left'
             )
-            final_X_test = pd.merge(
-                final_X_test \
+            train_full.rename(columns={'population_in_thousands':'population_in_thousands'+c+g}, inplace=True)
+            z = final_X_test['gender'].str.lower()==g
+            final_X_test.loc[z,:] = pd.merge(
+                final_X_test.loc[z,:] \
                  , age_buckets \
                  , left_on=['age_merge'+'-'+c+'-'+g] \
                  , right_index=True \
-                 , how='left' \
-                 , suffixes=(c+g,c+g)
+                 , left_index=False \
+                 , how='left'
             )
+            final_X_test.rename(columns={'population_in_thousands':'population_in_thousands'+c+g}, inplace=True)
 
     if update_columns:
         global NUM_COLS
@@ -603,7 +613,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
         if lm:
             ## Create prediction model for PCA features ##
             logging.warn('Creating regression model for session features')
-            components = len(session_columns)
+            components = pca_n
 
             ## Split out category and numeric columns ##
             tr_cat = train_full.loc[:,CAT_COLS]
@@ -780,7 +790,7 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
+    attach_sessions(collapse=False, pca=False, update_columns=True) #, lm=True, update_columns=True, pca_n=20)
     component_isolation(categorical=True, numeric=True, update_columns=True)
     final_model(test=True, grid_cv=False, save_results=True)
 
