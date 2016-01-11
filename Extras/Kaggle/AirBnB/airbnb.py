@@ -401,8 +401,8 @@ def attach_age_buckets(update_columns=True):
             )
             train_full.rename(columns={'population_in_thousands':'population_in_thousands'+c+g}, inplace=True)
             z = final_X_test['gender'].str.lower()==g
-            final_X_test.loc = pd.merge(
-                final_X_test.loc \
+            final_X_test = pd.merge(
+                final_X_test \
                  , age_buckets \
                  , left_on=['age_merge'+'-'+c+'-'+g] \
                  , right_index=True \
