@@ -753,7 +753,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Running model with training data')
         xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
-        xgb.fit(X_train , cat_le)
+        xgb.fit(X_train , cat_le, eval_metric='ndcg', eval_set=[(X_train, cat_le), (X_test, cat_tst_le)])
 
         ## Run model with only training data ##
         logging.warn('Test prediction accuracy')
@@ -765,6 +765,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
         logging.warn('Label Ranking Precision score: {}'.format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
         logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+        logging.warn('Eval result: {}'.format(xgb.evals_result()))
 
     ## Run model with all data and save ##
     if save_results:
@@ -798,7 +799,9 @@ def run():
     user_features(update_columns=True)
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=False, update_columns=True) #, lm=True, update_columns=True, pca_n=20)
-    component_isolation(categorical=True, numeric=True, update_columns=True)
+    # component_isolation(categorical=True, numeric=True, update_columns=True)
+    # NUM_COLS = ['days_to_first_booking', 'days_ago_created', 'days_ago_first_booking', 'population_in_thousandsFRmale', 'population_in_thousandsFRfemale', 'population_in_thousandsNLmale', 'population_in_thousandsNLfemale', 'population_in_thousandsPTmale', 'population_in_thousandsPTfemale', 'population_in_thousandsCAmale', 'population_in_thousandsCAfemale', 'population_in_thousandsDEmale', 'population_in_thousandsDEfemale', 'population_in_thousandsITmale', 'population_in_thousandsITfemale', 'population_in_thousandsUSmale', 'population_in_thousandsUSfemale', 'population_in_thousandsAUmale', 'population_in_thousandsAUfemale', 'population_in_thousandsGBmale', 'population_in_thousandsGBfemale', 'population_in_thousandsESmale', 'population_in_thousandsESfemale', 'session_14', 'session_15', 'session_359', 'session_360', 'session_361', 'session_362', 'session_363', 'session_364', 'session_365', 'session_366', 'session_369', 'session_409', 'session_413', 'session_414', 'session_415', 'session_417', 'session_419', 'session_425', 'session_427', 'session_430', 'session_435', 'session_441', 'session_445', 'session_459', 'session_460', 'session_461', 'session_462', 'session_463']
+    # CAT_COLS = ['gender', 'month_first_booking', 'year_created', 'first_affiliate_tracked']
     final_model(test=True, grid_cv=False, save_results=True)
 
 # if __name__=='__main__':
