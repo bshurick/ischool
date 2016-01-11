@@ -320,7 +320,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         ohe_indices = p.named_steps['ohe'].feature_indices_
         features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
         feature_names = list(train_full.loc[:,CAT_COLS].columns[features])
-        logging.warn('Usable categorical features: \n\t{}'.format('\n\t'.join(feature_names)))
+        logging.warn('Usable categorical features: \n\t{}'.format(str(feature_names)))
         if update_columns: CAT_COLS = feature_names
 
     if numeric:
@@ -335,7 +335,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
         features = rfe.support_
         feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
-        logging.warn('Usable numeric features: \n\t{}'.format('\n\t'.join(feature_names)))
+        logging.warn('Usable numeric features: \n\t{}'.format(str(feature_names)))
         if update_columns: NUM_COLS = feature_names
 
 # #### age buckets
@@ -401,8 +401,8 @@ def attach_age_buckets(update_columns=True):
             )
             train_full.rename(columns={'population_in_thousands':'population_in_thousands'+c+g}, inplace=True)
             z = final_X_test['gender'].str.lower()==g
-            final_X_test.loc[z,:] = pd.merge(
-                final_X_test.loc[z,:] \
+            final_X_test.loc = pd.merge(
+                final_X_test.loc \
                  , age_buckets \
                  , left_on=['age_merge'+'-'+c+'-'+g] \
                  , right_index=True \
@@ -711,7 +711,9 @@ def final_model(test=True,grid_cv=False,save_results=True):
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
     le = LabelEncoder()
+    lb = LabelBinarizer()
     cat_full = le.fit_transform(np.array(target_full).ravel())
+    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
 
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
     im2 = Imputer(strategy='mean')
@@ -724,14 +726,19 @@ def final_model(test=True,grid_cv=False,save_results=True):
 
     if test:
         ## Set up X,Y data for modeling ##
+        X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
+                                                          train_full[CAT_COLS+NUM_COLS] \
+                                                          , target_full \
+                                                          , test_size=TEST_SIZE \
+                                                          , random_state=0)
         cat_le = le.transform(np.array(Y_train).ravel())
         cat_tst_le = le.transform(np.array(Y_test).ravel())
+        cat_lb = lb.transform(np.array(Y_train).ravel())
+        cat_tst_lb = lb.transform(np.array(Y_test).ravel())
         X_train = np.concatenate((p.transform(X_train[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(X_train[NUM_COLS]))),axis=1)
         X_test = np.concatenate((p.transform(X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(X_test[NUM_COLS]))),axis=1)
-        Y_train = cat_le
-        Y_test = cat_tst_le
 
         if grid_cv:
             ''' ## Run grid search to find optimal parameters ##
@@ -746,15 +753,15 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Running model with training data')
         xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
-        xgb.fit(X_train , Y_train)
+        xgb.fit(X_train , cat_le)
 
         ## Run model with only training data ##
         logging.warn('Test prediction accuracy')
-        p_pred = xgb.predict(X_2)
+        p_pred = xgb.predict(X_test)
         p_pred_i = le.inverse_transform(p_pred)
-        p_pred_p = xgb.predict_proba(X_2)
+        p_pred_p = xgb.predict_proba(X_test)
         logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-        logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test)))
+        logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
         logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
         logging.warn('Label Ranking Precision score: {}'.format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
         logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
