@@ -543,115 +543,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
         session_columns = list(sessions_new.iloc[:,features].columns)
         logging.warn('Meaningful columns: \n\r{}'.format('\n\t'.join(session_columns)))
     else:
-        # session_columns = list(sessions_new.columns)
-        ## Already ran ##
-        session_columns = ['session_14',
-                             'session_15',
-                             'session_16',
-                             'session_17',
-                             'session_18',
-                             'session_19',
-                             'session_20',
-                             'session_21',
-                             'session_22',
-                             'session_23',
-                             'session_24',
-                             'session_25',
-                             'session_26',
-                             'session_27',
-                             'session_28',
-                             'session_29',
-                             'session_30',
-                             'session_31',
-                             'session_32',
-                             'session_33',
-                             'session_34',
-                             'session_35',
-                             'session_36',
-                             'session_37',
-                             'session_38',
-                             'session_39',
-                             'session_40',
-                             'session_41',
-                             'session_42',
-                             'session_43',
-                             'session_44',
-                             'session_45',
-                             'session_46',
-                             'session_47',
-                             'session_48',
-                             'session_49',
-                             'session_50',
-                             'session_51',
-                             'session_52',
-                             'session_53',
-                             'session_54',
-                             'session_55',
-                             'session_85',
-                             'session_163',
-                             'session_174',
-                             'session_175',
-                             'session_176',
-                             'session_197',
-                             'session_200',
-                             'session_213',
-                             'session_226',
-                             'session_233',
-                             'session_300',
-                             'session_331',
-                             'session_332',
-                             'session_333',
-                             'session_334',
-                             'session_335',
-                             'session_336',
-                             'session_337',
-                             'session_338',
-                             'session_339',
-                             'session_340',
-                             'session_341',
-                             'session_342',
-                             'session_343',
-                             'session_344',
-                             'session_345',
-                             'session_346',
-                             'session_347',
-                             'session_348',
-                             'session_349',
-                             'session_350',
-                             'session_351',
-                             'session_352',
-                             'session_353',
-                             'session_354',
-                             'session_355',
-                             'session_356',
-                             'session_357',
-                             'session_358',
-                             'session_359',
-                             'session_360',
-                             'session_361',
-                             'session_362',
-                             'session_363',
-                             'session_364',
-                             'session_365',
-                             'session_366',
-                             'session_369',
-                             'session_409',
-                             'session_413',
-                             'session_414',
-                             'session_415',
-                             'session_417',
-                             'session_419',
-                             'session_425',
-                             'session_427',
-                             'session_430',
-                             'session_435',
-                             'session_441',
-                             'session_445',
-                             'session_459',
-                             'session_460',
-                             'session_461',
-                             'session_462',
-                             'session_463']
+        session_columns = list(sessions_new.columns)
     if update_columns: NUM_COLS += session_columns
 
     ## PCA ##
@@ -738,21 +630,21 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
                 final_X_test.loc[:,'lm_'+str(i)] = lm.predict(tstcombined_final)
                 lms[i] = lm
 
-            merged_tst = pd.merge(X_test \
-                                    , lm_features \
-                                    , how='inner' \
-                                    , left_index=True \
-                                    , right_index=True  )
-            for i in range(components):
-                logging.warn('MSE {}: {}'.format(i \
-                    , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
-                                                    - merged_tst[i])**2))) \
-                ))
+            # merged_tst = pd.merge(X_test \
+            #                         , lm_features \
+            #                         , how='inner' \
+            #                         , left_index=True \
+            #                         , right_index=True  )
+            # for i in range(components):
+            #     logging.warn('MSE {}: {}'.format(i \
+            #         , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
+            #                                         - merged_tst[i])**2))) \
+            #     ))
                 # train_full.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
                 # X_test.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
 
             train_full = pd.concat([train_full,tr_pca],axis=1)
-            X_test = pd.concat([X_test,tst_pca],axis=1)
+            # X_test = pd.concat([X_test,tst_pca],axis=1)
             final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
 
             if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
@@ -812,7 +704,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
+        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=5000,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X_train , cat_le)
 
@@ -835,7 +727,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         '''
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
+        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=5000,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
@@ -856,7 +748,7 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=True, pca=False, update_columns=True) #, lm=True, update_columns=True, pca_n=20)
+    attach_sessions(collapse=True, pca=True, lm=True, update_columns=True, pca_n=5)
     component_isolation(categorical=True, numeric=True, update_columns=True)
     final_model(test=True, grid_cv=False, save_results=True)
 
