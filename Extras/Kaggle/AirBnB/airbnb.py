@@ -25,13 +25,14 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
-from sklearn.ensemble import AdaBoostClassifier
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.feature_selection import RFECV
 from sklearn import cross_validation
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
                             , label_ranking_average_precision_score, label_ranking_loss
+from sklearn.metrics import make_scorer
 
 # Neural Nets
 from keras.models import Sequential
@@ -103,6 +104,64 @@ class MultiColumnLabelEncoder:
             output[colname] = le.inverse_transform(output[colname])
         return output
 
+def dcg_score(y_true, y_score, k=10, gains="exponential"):
+    """ adapted from https://gist.github.com/mblondel/7337391
+    Discounted cumulative gain (DCG) at rank k
+    Parameters
+    ----------
+    y_true : array-like, shape = [n_samples, n_categories]
+        Ground truth (true relevance labels).
+    y_score : array-like, shape = [n_samples, n_categories]
+        Predicted scores.
+    k : int
+        Rank.
+    gains : str
+        Whether gains should be "exponential" (default) or "linear".
+    Returns
+    -------
+    DCG @k : float
+    """
+    if y_true.ndim == 1:
+        lb = LabelBinarizer()
+        y_true = lb.fit_transform(y_true)
+    if y_score.ndim == 1:
+        lb = LabelBinarizer()
+        y_score = lb.fit_transform(y_score)
+
+    order = np.argsort(y_score)[:,::-1]
+    y_true = np.take(y_true, order[:,:k])
+
+    if gains == "exponential":
+        gains = 2 ** y_true - 1
+    elif gains == "linear":
+        gains = y_true
+    else:
+        raise ValueError("Invalid gains option.")
+
+    # highest rank is 1 so +2 instead of +1
+    discounts = 1/np.log2(np.arange(y_true.shape[1]) + 2)
+    return np.sum(gains * discounts)
+
+def ndcg_score(y_true, y_score, k=10, gains="exponential"):
+    """ adapted from https://gist.github.com/mblondel/7337391
+    Normalized discounted cumulative gain (NDCG) at rank k
+    Parameters
+    ----------
+    y_true : array-like, shape = [n_samples, n_categories]
+        Ground truth (true relevance labels).
+    y_score : array-like, shape = [n_samples, n_categories]
+        Predicted scores.
+    k : int
+        Rank.
+    gains : str
+        Whether gains should be "exponential" (default) or "linear".
+    Returns
+    -------
+    NDCG @k : float
+    """
+    best = dcg_score(y_true, y_true, k, gains)
+    actual = dcg_score(y_true, y_score, k, gains)
+    return actual / best
 
 # ### Declare Args
 def declare_args():
@@ -300,9 +359,10 @@ def user_features(update_columns=True):
 def component_isolation(categorical=True,numeric=True,update_columns=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
-    abc = AdaBoostClassifier(learning_rate=0.1)
+    abc = DecisionTreeClassifier(max_depth=6)
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
     le = LabelEncoder()
+    ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
 
     if categorical:
         global CAT_COLS
@@ -313,7 +373,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
                 mcl.fit_transform(train_full.iloc[:,:].loc[:,CAT_COLS])
             ) # trim original dataset to smaller sample
         Y = le.fit_transform(np.array(target_full.iloc[:,:]).ravel())
-        rfe = RFECV(abc, scoring='log_loss', verbose=2, cv=2)
+        rfe = RFECV(abc, scoring=ndcg, verbose=2, cv=2)
         rfe.fit( X , Y )
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
         ohe_features = p.named_steps['ohe'].active_features_[rfe.support_]
@@ -470,8 +530,9 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     if collapse:
         ## Extract most importance features ##
         logging.warn('Extracting meaningful session features')
-        abc = AdaBoostClassifier(learning_rate=0.1)
-        rfe = RFECV(abc, scoring='log_loss', verbose=2, cv=2)
+        abc = DecisionTreeClassifier(max_depth=6)
+        ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
+        rfe = RFECV(abc, scoring=ndcg, verbose=2, cv=2)
         le = LabelEncoder()
         X = np.array(merged)[:,:-1]
         Y = le.fit_transform(np.array(merged)[:,-1:].ravel())
@@ -753,7 +814,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Running model with training data')
         xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=100,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
-        xgb.fit(X_train , cat_le, eval_metric='ndcg', eval_set=[(X_train, cat_le), (X_test, cat_tst_le)])
+        xgb.fit(X_train , cat_le)
 
         ## Run model with only training data ##
         logging.warn('Test prediction accuracy')
@@ -765,7 +826,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
         logging.warn('Label Ranking Precision score: {}'.format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
         logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-        logging.warn('Eval result: {}'.format(xgb.evals_result()))
+        logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
     ## Run model with all data and save ##
     if save_results:
@@ -798,8 +859,8 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=False, update_columns=True) #, lm=True, update_columns=True, pca_n=20)
-    # component_isolation(categorical=True, numeric=True, update_columns=True)
+    attach_sessions(collapse=True, pca=False, update_columns=True) #, lm=True, update_columns=True, pca_n=20)
+    component_isolation(categorical=True, numeric=True, update_columns=True)
     # NUM_COLS = ['days_to_first_booking', 'days_ago_created', 'days_ago_first_booking', 'population_in_thousandsFRmale', 'population_in_thousandsFRfemale', 'population_in_thousandsNLmale', 'population_in_thousandsNLfemale', 'population_in_thousandsPTmale', 'population_in_thousandsPTfemale', 'population_in_thousandsCAmale', 'population_in_thousandsCAfemale', 'population_in_thousandsDEmale', 'population_in_thousandsDEfemale', 'population_in_thousandsITmale', 'population_in_thousandsITfemale', 'population_in_thousandsUSmale', 'population_in_thousandsUSfemale', 'population_in_thousandsAUmale', 'population_in_thousandsAUfemale', 'population_in_thousandsGBmale', 'population_in_thousandsGBfemale', 'population_in_thousandsESmale', 'population_in_thousandsESfemale', 'session_14', 'session_15', 'session_359', 'session_360', 'session_361', 'session_362', 'session_363', 'session_364', 'session_365', 'session_366', 'session_369', 'session_409', 'session_413', 'session_414', 'session_415', 'session_417', 'session_419', 'session_425', 'session_427', 'session_430', 'session_435', 'session_441', 'session_445', 'session_459', 'session_460', 'session_461', 'session_462', 'session_463']
     # CAT_COLS = ['gender', 'month_first_booking', 'year_created', 'first_affiliate_tracked']
     final_model(test=True, grid_cv=False, save_results=True)
