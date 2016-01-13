@@ -339,7 +339,7 @@ def user_features(update_columns=True):
 
     ## Add special values for nulls for categorical fields
     train_full['year_first_booking'].fillna(1970,inplace=True)
-    train_full['month_first_booking'].fillna(1970,inplace=True)
+    train_full['month_first_booking'].fillna(0,inplace=True)
     train_full['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
 
     ## Repeat with final test ##
@@ -704,7 +704,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=5000,
+        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=3000,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X_train , cat_le)
 
@@ -727,7 +727,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         '''
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=5000,
+        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=3000,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
@@ -745,12 +745,16 @@ def final_model(test=True,grid_cv=False,save_results=True):
         results_df.to_csv('Data/submission.csv',index=False)
 
 def run():
+    global CAT_COLS
+    global NUM_COLS
     declare_args(); load_data()
     user_features(update_columns=True)
-    attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=True, pca=True, lm=True, update_columns=True, pca_n=5)
-    component_isolation(categorical=True, numeric=True, update_columns=True)
-    final_model(test=True, grid_cv=False, save_results=True)
+    # attach_age_buckets(update_columns=True)
+    # attach_sessions(collapse=True, pca=True, lm=True, update_columns=True, pca_n=5)
+    # component_isolation(categorical=True, numeric=True, update_columns=True)
+    CAT_COLS = ['signup_app', 'year_first_booking', 'month_first_booking', 'affiliate_channel', 'month_created']
+    NUM_COLS = ['days_to_first_booking']
+    final_model(test=True, grid_cv=False, save_results=False)
 
 # if __name__=='__main__':
 #     run()
