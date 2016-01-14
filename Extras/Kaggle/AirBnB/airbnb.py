@@ -121,25 +121,28 @@ def dcg_score(y_true, y_score, k=10, gains="exponential"):
     -------
     DCG @k : float
     """
-    if y_true.ndim == 1:
-        lb = LabelBinarizer()
-        y_true = lb.fit_transform(y_true)
-    if y_score.ndim == 1:
-        lb = LabelBinarizer()
-        y_score = lb.fit_transform(y_score)
-
-    order = np.argsort(y_score)[:,::-1]
-    y_true = np.take(y_true, order[:,:k])
+    if y_true is y_score:
+        order = np.zeros((y_true.shape[0],k))
+        order[:,0] = 1
+        y_true = order
+    else:
+        if y_true.ndim == 1:
+            lb = LabelBinarizer()
+            y_true = lb.fit_transform(y_true)
+        order = np.argsort(y_score)[:,::-1]
+        y_true = np.take(y_true, order[:,:k])
+    # y_score = np.sort(y_score)[:,::-1][:,:k]
 
     if gains == "exponential":
-        gains = 2 ** y_true - 1
+        gains = (2 ** y_true - 1)
     elif gains == "linear":
         gains = y_true
     else:
         raise ValueError("Invalid gains option.")
 
     # highest rank is 1 so +2 instead of +1
-    discounts = 1/np.log2(np.arange(y_true.shape[1]) + 2)
+    discounts = 1/(np.log2(np.arange(y_true.shape[1]) + 2))
+
     return np.sum(gains * discounts)
 
 def ndcg_score(y_true, y_score, k=10, gains="exponential"):
@@ -301,59 +304,36 @@ def user_features(update_columns=True):
 
     ## add new date features ##
     train_full['date_account_created'] = pd.to_datetime(train_full['date_account_created'])
-    train_full['date_first_booking'] = pd.to_datetime(train_full['date_first_booking'])
     train_full['year_created'] = train_full['date_account_created'].dt.year
     train_full['month_created'] = train_full['date_account_created'].dt.month
-    train_full['year_first_booking'] = train_full['date_first_booking'].dt.year
-    train_full['month_first_booking'] = train_full['date_first_booking'].dt.month
-    train_full['days_to_first_booking'] = train_full['date_first_booking']-train_full['date_account_created']
+    train_full['created_day_of_week'] = train_full['date_account_created'].dt.dayofweek
+    train_full['created_day_of_month'] = train_full['date_account_created'].dt.day
+    train_full['created_day_of_year'] = train_full['date_account_created'].dt.dayofyear
     train_full['days_ago_created'] = (DT.datetime.now() - train_full['date_account_created']).dt.days
-    train_full['days_ago_first_booking'] = (DT.datetime.now() - train_full['date_first_booking']).dt.days
 
     ## repeat with final test ##
     final_X_test['date_account_created'] = pd.to_datetime(final_X_test['date_account_created'])
-    final_X_test['date_first_booking'] = pd.to_datetime(final_X_test['date_first_booking'])
     final_X_test['year_created'] = final_X_test['date_account_created'].dt.year
     final_X_test['month_created'] = final_X_test['date_account_created'].dt.month
-    final_X_test['year_first_booking'] = final_X_test['date_first_booking'].dt.year
-    final_X_test['month_first_booking'] = final_X_test['date_first_booking'].dt.month
-    final_X_test['days_to_first_booking'] = final_X_test['date_first_booking']-final_X_test['date_account_created']
+    final_X_test['created_day_of_week'] = final_X_test['date_account_created'].dt.dayofweek
+    final_X_test['created_day_of_month'] = final_X_test['date_account_created'].dt.day
+    final_X_test['created_day_of_year'] = final_X_test['date_account_created'].dt.dayofyear
     final_X_test['days_ago_created'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days
-    final_X_test['days_ago_first_booking'] = (DT.datetime.now() - final_X_test['date_first_booking']).dt.days
 
     ## Add new columns to model cols ##
     if update_columns:
         global CAT_COLS
         global NUM_COLS
         CAT_COLS += [
-            'year_first_booking',
-            'month_first_booking',
             'year_created',
             'month_created',
+            'created_day_of_week',
+            'created_day_of_month',
+            'created_day_of_year',
         ]
         NUM_COLS += [
-            'days_to_first_booking',
             'days_ago_created',
-            'days_ago_first_booking',
         ]
-
-    ## Add special values for nulls for categorical fields
-    train_full['year_first_booking'].fillna(1970,inplace=True)
-    train_full['month_first_booking'].fillna(0,inplace=True)
-    train_full['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
-
-    ## Repeat with final test ##
-    final_X_test['year_first_booking'].fillna(1970,inplace=True)
-    final_X_test['month_first_booking'].fillna(0,inplace=True)
-    final_X_test['date_first_booking'].fillna(pd.to_datetime('1970-01-01'),inplace=True)
-
-    ## add new date features ##
-    train_full.loc[train_full['days_to_first_booking']<pd.Timedelta(0),['days_to_first_booking']] = np.nan
-    train_full['days_to_first_booking'] = train_full['days_to_first_booking'].astype('timedelta64[D]')
-
-    final_X_test.loc[final_X_test['days_to_first_booking']<pd.Timedelta(0),['days_to_first_booking']] = np.nan
-    final_X_test['days_to_first_booking'] = final_X_test['days_to_first_booking'].astype('timedelta64[D]')
-
 
 # ### Isolate components that are usable ##
 def component_isolation(categorical=True,numeric=True,update_columns=False):
@@ -704,7 +684,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=3000,
+        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X_train , cat_le)
 
@@ -727,7 +707,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         '''
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=3000,
+        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=500,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
@@ -752,9 +732,9 @@ def run():
     # attach_age_buckets(update_columns=True)
     # attach_sessions(collapse=True, pca=True, lm=True, update_columns=True, pca_n=5)
     # component_isolation(categorical=True, numeric=True, update_columns=True)
-    CAT_COLS = ['signup_app', 'year_first_booking', 'month_first_booking', 'affiliate_channel', 'month_created']
-    NUM_COLS = ['days_to_first_booking']
-    final_model(test=True, grid_cv=False, save_results=False)
+    # CAT_COLS = ['gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser', 'year_created', 'month_created', 'created_day_of_week', 'created_day_of_month', 'created_day_of_year']
+    # NUM_COLS = ['age', 'days_ago_created', 'session_361', 'session_365', 'pca_session_1']
+    # final_model(test=True, grid_cv=False, save_results=True)
 
 # if __name__=='__main__':
 #     run()
