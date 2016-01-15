@@ -26,6 +26,7 @@ from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
 from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.feature_selection import RFECV
 from sklearn import cross_validation
 
@@ -293,6 +294,7 @@ def user_features(update_columns=True):
     logging.warn('Processing user data features')
     train_full.index = train_full['id']
     final_X_test.index = final_X_test['id']
+    target_full.index = train_full.index
 
     ## Change signup method for a random observation ##
     ## New signup method 'weibo' exists in final dataset ##
@@ -304,42 +306,61 @@ def user_features(update_columns=True):
 
     ## add new date features ##
     train_full['date_account_created'] = pd.to_datetime(train_full['date_account_created'])
-    train_full['year_created'] = train_full['date_account_created'].dt.year
-    train_full['month_created'] = train_full['date_account_created'].dt.month
+    train_full['created_year'] = train_full['date_account_created'].dt.year
+    train_full['created_month'] = train_full['date_account_created'].dt.month
     train_full['created_day_of_week'] = train_full['date_account_created'].dt.dayofweek
     train_full['created_day_of_month'] = train_full['date_account_created'].dt.day
     train_full['created_day_of_year'] = train_full['date_account_created'].dt.dayofyear
-    train_full['days_ago_created'] = (DT.datetime.now() - train_full['date_account_created']).dt.days
+    train_full['created_days_ago'] = (DT.datetime.now() - train_full['date_account_created']).dt.days
+    train_full['created_months_ago'] = (DT.datetime.now() - train_full['date_account_created']).dt.days//30
+    train_full['first_active_datetime'] = pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
+    train_full['first_active_year'] = train_full['first_active_datetime'].dt.year
+    train_full['first_active_month'] = train_full['first_active_datetime'].dt.month
+    train_full['first_active_day_of_month'] = train_full['first_active_datetime'].dt.day
+    train_full['first_active_hour_of_day'] = train_full['first_active_datetime'].dt.hour
 
     ## repeat with final test ##
     final_X_test['date_account_created'] = pd.to_datetime(final_X_test['date_account_created'])
-    final_X_test['year_created'] = final_X_test['date_account_created'].dt.year
-    final_X_test['month_created'] = final_X_test['date_account_created'].dt.month
+    final_X_test['created_year'] = final_X_test['date_account_created'].dt.year
+    final_X_test['created_month'] = final_X_test['date_account_created'].dt.month
+    final_X_test['created_hour_of_day'] = final_X_test['date_account_created'].dt.hour
     final_X_test['created_day_of_week'] = final_X_test['date_account_created'].dt.dayofweek
     final_X_test['created_day_of_month'] = final_X_test['date_account_created'].dt.day
     final_X_test['created_day_of_year'] = final_X_test['date_account_created'].dt.dayofyear
-    final_X_test['days_ago_created'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days
+    final_X_test['created_days_ago'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days
+    final_X_test['created_months_ago'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days//30
+    final_X_test['first_active_datetime'] = pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
+    final_X_test['first_active_year'] = final_X_test['first_active_datetime'].dt.year
+    final_X_test['first_active_month'] = final_X_test['first_active_datetime'].dt.month
+    final_X_test['first_active_day_of_month'] = final_X_test['first_active_datetime'].dt.day
+    final_X_test['first_active_hour_of_day'] = final_X_test['first_active_datetime'].dt.hour
 
     ## Add new columns to model cols ##
     if update_columns:
         global CAT_COLS
         global NUM_COLS
         CAT_COLS += [
-            'year_created',
-            'month_created',
+            'created_year',
+            'created_month',
             'created_day_of_week',
             'created_day_of_month',
             'created_day_of_year',
+            'first_active_year',
+            'first_active_month',
+            'first_active_day_of_month',
+            'first_active_hour_of_day',
         ]
         NUM_COLS += [
-            'days_ago_created',
+            'created_days_ago',
+            'created_months_ago',
         ]
 
 # ### Isolate components that are usable ##
 def component_isolation(categorical=True,numeric=True,update_columns=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
-    abc = DecisionTreeClassifier(max_depth=6)
+    abc = GradientBoostingClassifier(learning_rate=100, n_estimators=50, max_depth=6 \
+            , subsample = 0.5)
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
     le = LabelEncoder()
     ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
@@ -456,7 +477,7 @@ def attach_age_buckets(update_columns=True):
         NUM_COLS += [ p+g for p,g in product([ 'population_in_thousands'+c for c in set(countries['country_destination']) ],genders) ]
 
 # #### Sessions
-def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=5):
+def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=5, session_columns=[]):
     ''' Collapse and merge user session data
     '''
     global train_full
@@ -472,7 +493,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     x = ohe.fit_transform(
         mcl.fit_transform(s)
     )
-    n = x.shape[1]//50
+    n = x.shape[1]//50 # 50 chunks of session data
 
     ## Function to minimize session data at the user level ##
     def minimize_df(i,lim,n,nparr):
@@ -510,7 +531,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     if collapse:
         ## Extract most importance features ##
         logging.warn('Extracting meaningful session features')
-        abc = DecisionTreeClassifier(max_depth=6)
+        abc = DecisionTreeClassifier(max_depth=8)
         ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
         rfe = RFECV(abc, scoring=ndcg, verbose=2, cv=2)
         le = LabelEncoder()
@@ -523,7 +544,8 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
         session_columns = list(sessions_new.iloc[:,features].columns)
         logging.warn('Meaningful columns: \n\r{}'.format('\n\t'.join(session_columns)))
     else:
-        session_columns = list(sessions_new.columns)
+        if not session_columns:
+            session_columns = list(sessions_new.columns)
     if update_columns: NUM_COLS += session_columns
 
     ## PCA ##
@@ -590,18 +612,19 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
             mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
             mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
             mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
+            #
+            # lm_cvs = [ ElasticNetCV( \
+            #             l1_ratio=[.1, .5, .7, .9, .95, 1] \
+            #             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
+            #             , max_iter=1000, n_jobs=2
+            #         ) \
+            #         for l in np.arange(components) ]
+            # for i,lm in enumerate(lm_cvs):
+            #     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
 
-            lm_cvs = [ ElasticNetCV( \
-                        l1_ratio=[.1, .5, .7, .9, .95, 1] \
-                        , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
-                        , max_iter=1000, n_jobs=2
-                    ) \
-                    for l in np.arange(components) ]
-            for i,lm in enumerate(lm_cvs):
-                lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
-
-            for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
-            lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+            # for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
+            # lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+            lms = [ ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True) \
                         for l in lm_cvs ]
 
             for i,lm in enumerate(lms):
@@ -674,18 +697,21 @@ def final_model(test=True,grid_cv=False,save_results=True):
                                 ,im2.transform(np.array(X_test[NUM_COLS]))),axis=1)
 
         if grid_cv:
-            ''' ## Run grid search to find optimal parameters ##
-            params_grid = {'learning_rate':[0.3,0.1,0.05,0.02,0.01]
+            ## Run grid search to find optimal parameters ##
+            params_grid = {'learning_rate':[0.01,0.1,1,10,100]
             		, 'max_depth':[ 4, 6, 8 ]}
-            xgb = XGBClassifier(n_estimators=100, objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
+            xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', \
+                                subsample=0.5, colsample_bytree=0.5, seed=0)
             gs_csv = GridSearchCV(xgb, params_grid).fit(X_train, Y_train)
-            print(gs_csv.best_params_)
-            '''
+            logging.warn('Best XGB params: {}'.format(gs_csv.best_params_))
+        else:
+            gs_csv = {}
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
         xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
-                            objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
+                            objective='multi:softprob', subsample=0.5, \
+                            colsample_bytree=0.5, seed=0)
         xgb.fit(X_train , cat_le)
 
         ## Run model with only training data ##
@@ -707,7 +733,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         '''
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=500,
+        xgb = XGBClassifier(max_depth=6, learning_rate=1, n_estimators=500,
                             objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
@@ -730,11 +756,12 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True)
     # attach_age_buckets(update_columns=True)
-    # attach_sessions(collapse=True, pca=True, lm=True, update_columns=True, pca_n=5)
-    # component_isolation(categorical=True, numeric=True, update_columns=True)
-    # CAT_COLS = ['gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser', 'year_created', 'month_created', 'created_day_of_week', 'created_day_of_month', 'created_day_of_year']
-    # NUM_COLS = ['age', 'days_ago_created', 'session_361', 'session_365', 'pca_session_1']
-    # final_model(test=True, grid_cv=False, save_results=True)
+    # attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=10)
+            # , session_columns = ['session_361','session_365','session_396','session_409'])
+    # component_isolation(categorical=True, numeric=True, update_columns=False)
+    # CAT_COLS = ['gender', 'signup_method', 'signup_flow', 'affiliate_channel', 'first_affiliate_tracked', 'signup_app', 'first_device_type']
+    # NUM_COLS = ['age', 'created_days_ago', 'session_361', 'lm_1']
+    final_model(test=True, grid_cv=False, save_results=False)
 
 # if __name__=='__main__':
 #     run()
