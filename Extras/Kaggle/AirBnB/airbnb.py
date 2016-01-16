@@ -26,9 +26,10 @@ from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
 from sklearn.tree import DecisionTreeClassifier
-from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.feature_selection import RFECV
 from sklearn import cross_validation
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
+from sklearn.grid_search import GridSearchCV
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -49,9 +50,6 @@ from xgboost.sklearn import XGBClassifier
 # matplotlib
 import matplotlib.pyplot as plt
 #get_ipython().magic(u'matplotlib inline')
-
-# Grid Search
-from sklearn.grid_search import GridSearchCV
 
 # custom MCL function
 class MultiColumnLabelEncoder:
@@ -285,11 +283,13 @@ def load_data():
     sessions = pd.read_csv(SESSIONS_FILE)
 
 # ### User data
-def user_features(update_columns=True):
+def user_features(update_columns=True, newages=False):
     ''' Run feature engineering and cleaup for user features
     '''
     global train_full
     global final_X_test
+    global CAT_COLS
+    global NUM_COLS
 
     logging.warn('Processing user data features')
     train_full.index = train_full['id']
@@ -308,59 +308,157 @@ def user_features(update_columns=True):
     train_full['date_account_created'] = pd.to_datetime(train_full['date_account_created'])
     train_full['created_year'] = train_full['date_account_created'].dt.year
     train_full['created_month'] = train_full['date_account_created'].dt.month
+    # train_full['created_season'] = train_full['date_account_created'].dt.month // 3
     train_full['created_day_of_week'] = train_full['date_account_created'].dt.dayofweek
     train_full['created_day_of_month'] = train_full['date_account_created'].dt.day
     train_full['created_day_of_year'] = train_full['date_account_created'].dt.dayofyear
     train_full['created_days_ago'] = (DT.datetime.now() - train_full['date_account_created']).dt.days
-    train_full['created_months_ago'] = (DT.datetime.now() - train_full['date_account_created']).dt.days//30
-    train_full['first_active_datetime'] = pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
-    train_full['first_active_year'] = train_full['first_active_datetime'].dt.year
-    train_full['first_active_month'] = train_full['first_active_datetime'].dt.month
-    train_full['first_active_day_of_month'] = train_full['first_active_datetime'].dt.day
-    train_full['first_active_hour_of_day'] = train_full['first_active_datetime'].dt.hour
+    train_full['created_months_ago'] = (DT.datetime.now() \
+                                            - train_full['date_account_created']).dt.days//30
+    train_full['first_active_datetime'] = \
+                        pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
+    train_full['first_active_part_of_day'] = train_full['first_active_datetime'].dt.hour // 4
 
     ## repeat with final test ##
     final_X_test['date_account_created'] = pd.to_datetime(final_X_test['date_account_created'])
     final_X_test['created_year'] = final_X_test['date_account_created'].dt.year
     final_X_test['created_month'] = final_X_test['date_account_created'].dt.month
+    # final_X_test['created_season'] = final_X_test['date_account_created'].dt.month // 3
     final_X_test['created_hour_of_day'] = final_X_test['date_account_created'].dt.hour
     final_X_test['created_day_of_week'] = final_X_test['date_account_created'].dt.dayofweek
     final_X_test['created_day_of_month'] = final_X_test['date_account_created'].dt.day
     final_X_test['created_day_of_year'] = final_X_test['date_account_created'].dt.dayofyear
     final_X_test['created_days_ago'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days
-    final_X_test['created_months_ago'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days//30
-    final_X_test['first_active_datetime'] = pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
-    final_X_test['first_active_year'] = final_X_test['first_active_datetime'].dt.year
-    final_X_test['first_active_month'] = final_X_test['first_active_datetime'].dt.month
-    final_X_test['first_active_day_of_month'] = final_X_test['first_active_datetime'].dt.day
-    final_X_test['first_active_hour_of_day'] = final_X_test['first_active_datetime'].dt.hour
+    final_X_test['created_months_ago'] = (DT.datetime.now() \
+                                            - final_X_test['date_account_created']).dt.days//30
+    final_X_test['first_active_datetime'] = \
+                        pd.to_datetime(final_X_test['timestamp_first_active'],format='%Y%m%d%H%M%S')
+    final_X_test['first_active_part_of_day'] = final_X_test['first_active_datetime'].dt.hour // 4
 
     ## Add new columns to model cols ##
     if update_columns:
-        global CAT_COLS
-        global NUM_COLS
         CAT_COLS += [
             'created_year',
             'created_month',
+            # 'created_season',
             'created_day_of_week',
             'created_day_of_month',
             'created_day_of_year',
-            'first_active_year',
-            'first_active_month',
-            'first_active_day_of_month',
-            'first_active_hour_of_day',
+            'first_active_part_of_day',
         ]
         NUM_COLS += [
             'created_days_ago',
             'created_months_ago',
         ]
 
+    ## fill out missing ages with prediction model ##
+    if newages:
+        # Prepare for model creation
+        mcl = MultiColumnLabelEncoder()
+        mm = MinMaxScaler()
+        ohe = OneHotEncoder()
+        ss = StandardScaler(with_mean=False)
+        ii = Imputer(strategy='most_frequent')
+        ii2 = Imputer(strategy='mean')
+        p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+        p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
+
+        # Create model
+        nullages = np.isnan(train_full['age'])
+        _ = p1.fit_transform(train_full[CAT_COLS])
+        _ = p2.fit_transform(train_full[[n for n in NUM_COLS if n!='age']])
+        X_1 = p1.transform(train_full[CAT_COLS][-nullages])
+        X_2 = p2.transform(train_full[[n for n in NUM_COLS if n!='age']][-nullages])
+        X = np.concatenate((X_1.todense(),X_2),axis=1)
+        Y = train_full['age'][-nullages]
+        en = ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True)
+        en.fit(X,Y)
+        X = np.concatenate((p1.transform(train_full[CAT_COLS]).todense(),
+                p2.transform(train_full[[n for n in NUM_COLS if n!='age']])),axis=1)
+        train_full['age_pred'] = en.predict(X)
+
+        # Prepare to make predictions
+        X_1 = p1.transform(final_X_test[CAT_COLS])
+        X_2 = p2.transform(final_X_test[[n for n in NUM_COLS if n!='age']])
+        X = np.concatenate((X_1.todense(),X_2),axis=1)
+        final_X_test['age_pred'] = en.predict(X)
+
+        # Add new column
+        NUM_COLS += ['age_pred']
+
+def add_pca(cat_cols,num_cols,pca_n=5,prefix='pca_'):
+    global NUM_COLS
+    global train_full
+    global final_X_test
+    c = pca_n
+    pca = PCA(n_components=c)
+    ss = StandardScaler()
+    mcl = MultiColumnLabelEncoder()
+    ohe = OneHotEncoder()
+    ss = StandardScaler(with_mean=False)
+    ii = Imputer(strategy='most_frequent')
+    ii2 = Imputer(strategy='mean')
+    p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+    p2 = Pipeline([('ii',ii2),('ss',ss)])
+    X_1 = p1.fit_transform(train_full[cat_cols])
+    X_2 = p2.fit_transform(train_full[num_cols])
+    X = np.concatenate((X_1.todense(),X_2),axis=1)
+    tr_pca = pd.DataFrame( pca.fit_transform(X)
+                        , columns = ['pca_collapsed_' + str(i) for i in range(c)]
+                        , index = train_full.index
+                    )
+    X_1 = p1.transform(final_X_test[cat_cols])
+    X_2 = p2.transform(final_X_test[num_cols])
+    X = np.concatenate((X_1.todense(),X_2),axis=1)
+    fnl_pca = pd.DataFrame( pca.transform(X)
+                        , columns = ['pca_collapsed_' + str(i) for i in range(c)]
+                        , index = final_X_test.index
+                    )
+    train_full = pd.concat([train_full,tr_pca],axis=1)
+    final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
+    logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
+    NUM_COLS += ['pca_collapsed_' + str(i) for i in range(c)]
+
+def add_lda(cat_cols,num_cols,prefix='lda_'):
+    global NUM_COLS
+    global train_full
+    global final_X_test
+    lda = LDA()
+    ss = StandardScaler()
+    mcl = MultiColumnLabelEncoder()
+    ohe = OneHotEncoder()
+    ss = StandardScaler(with_mean=False)
+    ii = Imputer(strategy='most_frequent')
+    ii2 = Imputer(strategy='mean')
+    p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+    p2 = Pipeline([('ii',ii2),('ss',ss)])
+    X_1 = p1.fit_transform(train_full[cat_cols])
+    X_2 = p2.fit_transform(train_full[num_cols])
+    X = np.concatenate((X_1.todense(),X_2),axis=1)
+    Y = target_full['country_destination']
+    c = len(set(Y))-1
+    tr_lda = pd.DataFrame( lda.fit_transform(X, Y)
+                        , columns = ['lda_collapsed_' + str(i) for i in range(c)]
+                        , index = train_full.index
+                    )
+    X_1 = p1.transform(final_X_test[cat_cols])
+    X_2 = p2.transform(final_X_test[num_cols])
+    X = np.concatenate((X_1.todense(),X_2),axis=1)
+    fnl_lda = pd.DataFrame( lda.transform(X)
+                        , columns = ['lda_collapsed_' + str(i) for i in range(c)]
+                        , index = final_X_test.index
+                    )
+    train_full = pd.concat([train_full,tr_lda],axis=1)
+    final_X_test = pd.concat([final_X_test,fnl_lda],axis=1)
+    NUM_COLS += ['lda_collapsed_' + str(i) for i in range(c)]
+
 # ### Isolate components that are usable ##
-def component_isolation(categorical=True,numeric=True,update_columns=False):
+def component_isolation(categorical=True,numeric=True,update_columns=False,pca=False,lda=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
-    abc = GradientBoostingClassifier(learning_rate=100, n_estimators=50, max_depth=6 \
-            , subsample = 0.5)
+    global newcatcols
+    global newnumcols
+    abc = DecisionTreeClassifier()
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
     le = LabelEncoder()
     ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
@@ -383,6 +481,7 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         feature_names = list(train_full.loc[:,CAT_COLS].columns[features])
         logging.warn('Usable categorical features: \n\t{}'.format(str(feature_names)))
         if update_columns: CAT_COLS = feature_names
+        newcatcols = feature_names
 
     if numeric:
         global NUM_COLS
@@ -391,13 +490,17 @@ def component_isolation(categorical=True,numeric=True,update_columns=False):
         im2 = Imputer(strategy='mean') ; le = LabelEncoder()
         X = im2.fit_transform(train_full.iloc[:,:].loc[:,NUM_COLS])
         Y = le.fit_transform(np.array(target_full.iloc[:,:]).ravel())
-        rfe = RFECV(abc, scoring='log_loss', verbose=2, cv=2)
+        rfe = RFECV(abc, scoring=ndcg, verbose=2, cv=2)
         rfe.fit( X , Y )
         logging.warn('Optimal number of user features: {}'.format(rfe.n_features_))
         features = rfe.support_
         feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format(str(feature_names)))
         if update_columns: NUM_COLS = feature_names
+        newnumcols = feature_names
+
+    if pca: add_pca(newcatcols,newnumcols,5,'pca_minimized_')
+    if lda: add_lda(newcatcols,newnumcols,'lda_minimized_')
 
 # #### age buckets
 def attach_age_buckets(update_columns=True):
@@ -460,7 +563,8 @@ def attach_age_buckets(update_columns=True):
                  , left_index=False \
                  , how='left'
             )
-            train_full.rename(columns={'population_in_thousands':'population_in_thousands'+c+g}, inplace=True)
+            train_full.rename(columns={'population_in_thousands':\
+                                        'population_in_thousands'+c+g}, inplace=True)
             z = final_X_test['gender'].str.lower()==g
             final_X_test = pd.merge(
                 final_X_test \
@@ -470,11 +574,13 @@ def attach_age_buckets(update_columns=True):
                  , left_index=False \
                  , how='left'
             )
-            final_X_test.rename(columns={'population_in_thousands':'population_in_thousands'+c+g}, inplace=True)
+            final_X_test.rename(columns={'population_in_thousands':\
+                                          'population_in_thousands'+c+g}, inplace=True)
 
     if update_columns:
         global NUM_COLS
-        NUM_COLS += [ p+g for p,g in product([ 'population_in_thousands'+c for c in set(countries['country_destination']) ],genders) ]
+        NUM_COLS += [ p+g for p,g in product([ 'population_in_thousands'+c \
+                           for c in set(countries['country_destination']) ],genders) ]
 
 # #### Sessions
 def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=5, session_columns=[]):
@@ -531,7 +637,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     if collapse:
         ## Extract most importance features ##
         logging.warn('Extracting meaningful session features')
-        abc = DecisionTreeClassifier(max_depth=8)
+        abc = DecisionTreeClassifier()
         ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
         rfe = RFECV(abc, scoring=ndcg, verbose=2, cv=2)
         le = LabelEncoder()
@@ -563,6 +669,8 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
                             , index = final_X_test.index \
                         )
         logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
+        train_full = pd.concat([train_full,tr_pca],axis=1)
+        final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
         if update_columns: NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
         if lm:
@@ -624,8 +732,9 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
 
             # for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
             # lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+                        # for l in lm_cvs ]
             lms = [ ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True) \
-                        for l in lm_cvs ]
+                        for l in np.arange(components) ]
 
             for i,lm in enumerate(lms):
                 lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
@@ -646,10 +755,6 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
                 # train_full.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
                 # X_test.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
 
-            train_full = pd.concat([train_full,tr_pca],axis=1)
-            # X_test = pd.concat([X_test,tst_pca],axis=1)
-            final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
-
             if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
 # ### Run final model ##
@@ -663,6 +768,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
     global Y_train
     global Y_test
     global final_X_test
+    global gs_csv
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
@@ -679,6 +785,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
     X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
     Y = cat_full
+    gs_csv = {'max_depth':6,'subsample':0.5,'colsample_bytree':0.5}
 
     if test:
         ## Set up X,Y data for modeling ##
@@ -698,20 +805,22 @@ def final_model(test=True,grid_cv=False,save_results=True):
 
         if grid_cv:
             ## Run grid search to find optimal parameters ##
-            params_grid = {'learning_rate':[0.01,0.1,1,10,100]
-            		, 'max_depth':[ 4, 6, 8 ]}
-            xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', \
-                                subsample=0.5, colsample_bytree=0.5, seed=0)
-            gs_csv = GridSearchCV(xgb, params_grid).fit(X_train, Y_train)
-            logging.warn('Best XGB params: {}'.format(gs_csv.best_params_))
-        else:
-            gs_csv = {}
+            params_grid = {
+                            # 'learning_rate':[0.01,0.1,1,10,100] ,
+            		         'max_depth':[ 4, 6, 8 ] ,
+                             'subsample':[ 0.25, 0.5, 0.75 ] ,
+                             'colsample_bytree':[ 0.25, 0.5, 0.75 ] ,
+                    }
+            ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
+            xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
+            cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X_train, cat_le)
+            logging.warn('Best XGB params: {}'.format(cv.best_params_))
+            gs_csv = cv.best_params_
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=0.05, n_estimators=50,
-                            objective='multi:softprob', subsample=0.5, \
-                            colsample_bytree=0.5, seed=0)
+        xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
+                            objective='multi:softprob',seed=0, **gs_csv)
         xgb.fit(X_train , cat_le)
 
         ## Run model with only training data ##
@@ -722,7 +831,8 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
         logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
         logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
-        logging.warn('Label Ranking Precision score: {}'.format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+        logging.warn('Label Ranking Precision score: {}'\
+                        .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
         logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
         logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
@@ -733,8 +843,8 @@ def final_model(test=True,grid_cv=False,save_results=True):
         '''
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
-        xgb = XGBClassifier(max_depth=6, learning_rate=1, n_estimators=500,
-                            objective='multi:softprob', subsample=0.5, colsample_bytree=0.5, seed=0)
+        xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
+                            objective='multi:softprob',seed=0, **gs_csv)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
@@ -754,14 +864,12 @@ def run():
     global CAT_COLS
     global NUM_COLS
     declare_args(); load_data()
-    user_features(update_columns=True)
-    # attach_age_buckets(update_columns=True)
-    # attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=10)
-            # , session_columns = ['session_361','session_365','session_396','session_409'])
-    # component_isolation(categorical=True, numeric=True, update_columns=False)
-    # CAT_COLS = ['gender', 'signup_method', 'signup_flow', 'affiliate_channel', 'first_affiliate_tracked', 'signup_app', 'first_device_type']
-    # NUM_COLS = ['age', 'created_days_ago', 'session_361', 'lm_1']
-    final_model(test=True, grid_cv=False, save_results=False)
+    user_features(update_columns=True, newages=True)
+    add_lda(CAT_COLS, NUM_COLS, 'lda_userdata_')
+    attach_age_buckets(update_columns=True)
+    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
+    component_isolation(categorical=True, numeric=True, update_columns=False, pca=True, lda=True)
+    final_model(test=True, grid_cv=True, save_results=True)
 
 # if __name__=='__main__':
 #     run()
