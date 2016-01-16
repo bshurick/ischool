@@ -785,7 +785,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
     X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
     Y = cat_full
-    gs_csv = {'max_depth':6,'subsample':0.5,'colsample_bytree':0.5}
+    gs_csv = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
 
     if test:
         ## Set up X,Y data for modeling ##
@@ -865,11 +865,10 @@ def run():
     global NUM_COLS
     declare_args(); load_data()
     user_features(update_columns=True, newages=True)
-    add_lda(CAT_COLS, NUM_COLS, 'lda_userdata_')
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
     component_isolation(categorical=True, numeric=True, update_columns=False, pca=True, lda=True)
-    final_model(test=True, grid_cv=True, save_results=True)
+    final_model(test=False, grid_cv=False, save_results=True)
 
 # if __name__=='__main__':
 #     run()
