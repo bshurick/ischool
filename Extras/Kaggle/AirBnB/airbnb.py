@@ -373,18 +373,25 @@ def user_features(update_columns=True, newages=False):
         Y = train_full['age'][-nullages]
         en = ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True)
         en.fit(X,Y)
-        X = np.concatenate((p1.transform(train_full[CAT_COLS]).todense(),
-                p2.transform(train_full[[n for n in NUM_COLS if n!='age']])),axis=1)
-        train_full['age_pred'] = en.predict(X)
+
+        # Fill out missing ages
+
+        X = np.concatenate((
+                p1.transform(train_full[nullages][CAT_COLS]).todense(),
+                p2.transform(train_full[nullages][[n for n in NUM_COLS if n!='age']]))
+            ,axis=1)
+        preds = pd.DataFrame({'age':en.predict(X)})
+        preds.index = train_full[nullages].index
+        train_full.loc[preds.index,'age'] = preds.astype('int')
 
         # Prepare to make predictions
-        X_1 = p1.transform(final_X_test[CAT_COLS])
-        X_2 = p2.transform(final_X_test[[n for n in NUM_COLS if n!='age']])
+        nullages = np.isnan(final_X_test['age'])
+        X_1 = p1.transform(final_X_test[nullages][CAT_COLS])
+        X_2 = p2.transform(final_X_test[nullages][[n for n in NUM_COLS if n!='age']])
         X = np.concatenate((X_1.todense(),X_2),axis=1)
-        final_X_test['age_pred'] = en.predict(X)
-
-        # Add new column
-        NUM_COLS += ['age_pred']
+        preds = pd.DataFrame({'age':en.predict(X)})
+        preds.index = final_X_test[nullages].index
+        final_X_test.loc[preds.index,'age'] = preds.astype('int')
 
 def add_pca(cat_cols,num_cols,pca_n=5,prefix='pca_'):
     global NUM_COLS
