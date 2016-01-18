@@ -252,7 +252,7 @@ def declare_args():
     ]
 
     # XGA boost params
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 10}
 
 # ### Read data
 def load_data():
@@ -349,13 +349,13 @@ def user_features(update_columns=True, newages=False):
     if update_columns:
         CAT_COLS += [
             'created_year',
-            # 'created_month',
+            'created_month',
             'created_season',
             'created_day_of_week',
-            # 'created_day_of_month',
+            'created_day_of_month',
             'created_part_of_month',
             'created_day_of_year',
-            # 'first_active_hour',
+            'first_active_hour',
             'first_active_part_of_day',
         ]
         NUM_COLS += [
@@ -472,7 +472,7 @@ def add_lda(cat_cols,num_cols,prefix='lda_'):
     NUM_COLS += ['lda_collapsed_' + str(i) for i in range(c)]
 
 # ### Isolate components that are usable ##
-def component_isolation(method='gradient',update_columns=False,pca=False,lda=False):
+def component_isolation(method='gradient',update_columns=False,add_pca=False,add_lda=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
     global newcatcols
@@ -570,8 +570,8 @@ def component_isolation(method='gradient',update_columns=False,pca=False,lda=Fal
         if update_columns: NUM_COLS = feature_names
         newnumcols = feature_names
 
-    if pca: add_pca(newcatcols,newnumcols,5,'pca_minimized_')
-    if lda: add_lda(newcatcols,newnumcols,'lda_minimized_')
+    if add_pca: add_pca(newcatcols,newnumcols,5,'pca_minimized_')
+    if add_lda: add_lda(newcatcols,newnumcols,'lda_minimized_')
 
 # #### age buckets
 def attach_age_buckets(update_columns=True):
@@ -856,7 +856,6 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
     X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
     Y = cat_full
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
 
     if test:
         ## Set up X,Y data for modeling ##
@@ -874,25 +873,24 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
         X_test = np.concatenate((p.transform(X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(X_test[NUM_COLS]))),axis=1)
 
-        if score:
-            ## Run model with only training data ##
-            logging.warn('Running model with training data')
-            xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
-                                objective='multi:softprob',seed=0, **GS_CV)
-            xgb.fit(X_train , cat_le)
+        ## Run model with only training data ##
+        logging.warn('Running model with training data')
+        xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
+                            objective='multi:softprob',seed=0, **GS_CV)
+        xgb.fit(X_train , cat_le)
 
-            ## Run model with only training data ##
-            logging.warn('Test prediction accuracy')
-            p_pred = xgb.predict(X_test)
-            p_pred_i = le.inverse_transform(p_pred)
-            p_pred_p = xgb.predict_proba(X_test)
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
-            logging.warn('Label Ranking Precision score: {}'\
-                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+        ## Run model with only training data ##
+        logging.warn('Test prediction accuracy')
+        p_pred = xgb.predict(X_test)
+        p_pred_i = le.inverse_transform(p_pred)
+        p_pred_p = xgb.predict_proba(X_test)
+        logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
+        logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
+        logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+        logging.warn('Label Ranking Precision score: {}'\
+                        .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+        logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+        logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
     if grid_cv:
         ## Run grid search to find optimal parameters ##
@@ -904,7 +902,7 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
                 }
         logging.warn('Running grid search CV with params: {}'.format(params_grid))
         ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
-        xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
+        xgb = XGBClassifier(n_estimators=25, objective='multi:softprob', seed=0)
         cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X, Y)
         logging.warn('Best XGB params: {}'.format(cv.best_params_))
         GS_CV = cv.best_params_
@@ -937,9 +935,9 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=False, lm=False, update_columns=True, pca_n=20)
-    component_isolation(method='gradient', update_columns=False, pca=True, lda=True)
-    final_model(test=True, grid_cv=True, save_final_results=True)
+    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
+    component_isolation(method='gradient', update_columns=False, add_pca=True, add_lda=True)
+    final_model(test=False, grid_cv=True, save_final_results=True)
 
 # if __name__=='__main__':
 #     run()
