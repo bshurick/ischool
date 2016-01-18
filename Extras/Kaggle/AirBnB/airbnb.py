@@ -530,7 +530,7 @@ def component_isolation(method='gradient',update_columns=False,pca=False,lda=Fal
             importance.index = importance['feature']
             del importance['feature']
             m = np.mean(importance['fscore'])
-            importance['threshold'] = importance['fscore'] > m
+            importance['threshold'] = importance['fscore'] >= m
             keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
             return keep
 
@@ -829,7 +829,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
             if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
 # ### Run final model ##
-def final_model(test=True,grid_cv=False,save_results=True):
+def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
     ''' execute final model
     '''
     global train_full
@@ -882,33 +882,35 @@ def final_model(test=True,grid_cv=False,save_results=True):
                              'subsample':[ 0.25, 0.5 ] ,
                              'colsample_bytree':[ 0.25, 0.5 ] ,
                     }
+            logging.warn('Running grid search CV with params: {}'.format(params_grid))
             ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
             xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
             cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X_train, cat_le)
             logging.warn('Best XGB params: {}'.format(cv.best_params_))
             GS_CV = cv.best_params_
 
-        ## Run model with only training data ##
-        logging.warn('Running model with training data')
-        xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
-                            objective='multi:softprob',seed=0, **GS_CV)
-        xgb.fit(X_train , cat_le)
+        if score:
+            ## Run model with only training data ##
+            logging.warn('Running model with training data')
+            xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
+                                objective='multi:softprob',seed=0, **GS_CV)
+            xgb.fit(X_train , cat_le)
 
-        ## Run model with only training data ##
-        logging.warn('Test prediction accuracy')
-        p_pred = xgb.predict(X_test)
-        p_pred_i = le.inverse_transform(p_pred)
-        p_pred_p = xgb.predict_proba(X_test)
-        logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-        logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-        logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
-        logging.warn('Label Ranking Precision score: {}'\
-                        .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-        logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-        logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+            ## Run model with only training data ##
+            logging.warn('Test prediction accuracy')
+            p_pred = xgb.predict(X_test)
+            p_pred_i = le.inverse_transform(p_pred)
+            p_pred_p = xgb.predict_proba(X_test)
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
+            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
+            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+            logging.warn('Label Ranking Precision score: {}'\
+                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
     ## Run model with all data and save ##
-    if save_results:
+    if save_final_results:
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
@@ -937,7 +939,7 @@ def run():
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=False, lm=False, update_columns=True, pca_n=20)
     component_isolation(method='gradient', update_columns=False, pca=True, lda=True)
-    final_model(test=False, grid_cv=True, save_results=True)
+    final_model(test=True, grid_cv=True, score=False, save_final_results=True)
 
 # if __name__=='__main__':
 #     run()
