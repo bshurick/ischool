@@ -47,6 +47,7 @@ from keras.layers.advanced_activations import PReLU
 
 # XGBoost
 from xgboost.sklearn import XGBClassifier
+import xgboost as xgb
 
 # matplotlib
 import matplotlib.pyplot as plt
@@ -521,11 +522,23 @@ def component_isolation(method='gradient',update_columns=False,pca=False,lda=Fal
         logging.warn('Finding feature importance values with GradientBoostingClassifier')
 
         ## Setup ##
+        def gather_important_features(scores):
+            importance = scores
+            importance = np.array(sorted([ (k, importance[k]) for k in importance ], key=lambda x: x[1], reverse=True))
+            importance = pd.DataFrame(importance,columns=['feature','fscore'])
+            importance['fscore'] = importance['fscore'].astype('int') / importance['fscore'].astype('int').sum()
+            importance.index = importance['feature']
+            del importance['feature']
+            m = np.mean(importance['fscore'])
+            importance['threshold'] = importance['fscore'] > m
+            keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
+            return keep
+
         xgb_params = {'learning_rate':0.1,
                             'objective':'multi:softprob','seed':0,'num_class':12,
                             'bst:colsample_bytree':0.25,'bst:max_depth':8,'bst:subsample':0.25,
                             'eval_metric':'ndcg'}
-        n_runs = 500
+        n_runs = 200
         mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
         im2 = Imputer(strategy='mean')
         le = LabelEncoder()
@@ -537,16 +550,8 @@ def component_isolation(method='gradient',update_columns=False,pca=False,lda=Fal
         ## Numeric columns ##
         logging.warn('Start with category features')
         dtrain = xgb.DMatrix(X_1, label=Y)
-        gbdt = xgb.train(xgb_params, dtrain, n_runs, verbose_eval=False)
-        importance = gbdt.get_fscore()
-        importance = np.array(sorted([ (k, importance[k]) for k in importance ], key=lambda x: x[1], reverse=True))
-        importance = pd.DataFrame(importance,columns=['feature','fscore'])
-        importance['fscore'] = importance['fscore'].astype('int') / importance['fscore'].astype('int').sum()
-        importance.index = importance['feature']
-        del importance['feature']
-        m = np.mean(importance['fscore'])
-        importance['threshold'] = importance['fscore'] > m
-        keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
+        gbdt = xgb.train(xgb_params, dtrain, n_runs, verbose_eval=100)
+        keep = gather_important_features(gbdt.get_fscore())
         ohe_indices = p1.named_steps['ohe'].feature_indices_
         ohe_features = sorted(p1.named_steps['ohe'].active_features_[keep])
         features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
@@ -558,17 +563,8 @@ def component_isolation(method='gradient',update_columns=False,pca=False,lda=Fal
         ## Numeric columns ##
         logging.warn('Run for numeric features')
         dtrain = xgb.DMatrix(X_2, label=Y)
-        gbdt = xgb.train(xgb_params, dtrain, n_runs, verbose_eval=False)
-        importance = gbdt.get_fscore()
-        importance = np.array(sorted([ (k, importance[k]) for k in importance ], key=lambda x: x[1], reverse=True))
-        importance = pd.DataFrame(importance,columns=['feature','fscore'])
-        importance['fscore'] = importance['fscore'].astype('int') / importance['fscore'].astype('int').sum()
-        importance.index = importance['feature']
-        del importance['feature']
-        m = np.mean(importance['fscore'])
-        importance['threshold'] = importance['fscore'] > m
-        keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
-        features = keep
+        gbdt = xgb.train(xgb_params, dtrain, n_runs, verbose_eval=100)
+        features = gather_important_features(gbdt.get_fscore())
         feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format(str(feature_names)))
         if update_columns: NUM_COLS = feature_names
@@ -936,12 +932,10 @@ def final_model(test=True,grid_cv=False,save_results=True):
         results_df.to_csv('Data/submission.csv',index=False)
 
 def run():
-    global CAT_COLS
-    global NUM_COLS
     declare_args(); load_data()
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
+    attach_sessions(collapse=False, pca=False, lm=False, update_columns=True, pca_n=20)
     component_isolation(method='gradient', update_columns=False, pca=True, lda=True)
     final_model(test=False, grid_cv=True, save_results=True)
 
