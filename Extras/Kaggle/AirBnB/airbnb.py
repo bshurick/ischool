@@ -405,7 +405,7 @@ def user_features(update_columns=True, newages=False):
         preds.index = final_X_test[nullages].index
         final_X_test.loc[preds.index,'age'] = preds.astype('int')
 
-def add_pca(cat_cols,num_cols,pca_n=5,prefix='pca_'):
+def calc_pca(cat_cols,num_cols,pca_n=5,prefix='pca_'):
     global NUM_COLS
     global train_full
     global final_X_test
@@ -438,7 +438,7 @@ def add_pca(cat_cols,num_cols,pca_n=5,prefix='pca_'):
     logging.warn('PCA Explained variance: {}'.format(np.sum(pca.explained_variance_ratio_)))
     NUM_COLS += ['pca_collapsed_' + str(i) for i in range(c)]
 
-def add_lda(cat_cols,num_cols,prefix='lda_'):
+def calc_lda(cat_cols,num_cols,prefix='lda_'):
     global NUM_COLS
     global train_full
     global final_X_test
@@ -570,8 +570,8 @@ def component_isolation(method='gradient',update_columns=False,add_pca=False,add
         if update_columns: NUM_COLS = feature_names
         newnumcols = feature_names
 
-    if add_pca: add_pca(newcatcols,newnumcols,5,'pca_minimized_')
-    if add_lda: add_lda(newcatcols,newnumcols,'lda_minimized_')
+    if add_pca: calc_pca(newcatcols,newnumcols,5,'pca_minimized_')
+    if add_lda: calc_lda(newcatcols,newnumcols,'lda_minimized_')
 
 # #### age buckets
 def attach_age_buckets(update_columns=True):
