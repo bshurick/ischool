@@ -183,6 +183,7 @@ def declare_args():
     global AGE_BUCKET_COLUMNS
     global CAT_COLS
     global NUM_COLS
+    global GS_CV
 
     ## Files ##
     AGE_GENDER_BUCKETS_FILE = 'Data/age_gender_bkts.csv'
@@ -248,6 +249,9 @@ def declare_args():
     NUM_COLS = [
         'age',
     ]
+
+    # XGA boost params
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
 
 # ### Read data
 def load_data():
@@ -510,21 +514,65 @@ def component_isolation(method='gradient',update_columns=False,pca=False,lda=Fal
         features = rfe.support_
         feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format(str(feature_names)))
-        if update_columns: NUM_COLS =q feature_names
+        if update_columns: NUM_COLS = feature_names
         newnumcols = feature_names
 
     if method=='gradient':
         logging.warn('Finding feature importance values with GradientBoostingClassifier')
-        abc = GradientBoostingClassifier(n_estimators=100, loss='exponential', max_depth=8
-                                        , subsample=0.25, random_state=0)
+
+        ## Setup ##
+        xgb_params = {'learning_rate':0.1,
+                            'objective':'multi:softprob','seed':0,'num_class':12,
+                            'bst:colsample_bytree':0.25,'bst:max_depth':8,'bst:subsample':0.25,
+                            'eval_metric':'ndcg'}
+        n_runs = 500
         mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
         im2 = Imputer(strategy='mean')
         le = LabelEncoder()
         p1 = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
         X_1 = p1.fit_transform(train_full[CAT_COLS])
         X_2 = im2.fit_transform(train_full[NUM_COLS])
-        X = np.concatenate((X_1.todense(),X_2),axis=1)
+        Y = le.fit_transform(np.array(target_full).ravel())
 
+        ## Numeric columns ##
+        logging.warn('Start with category features')
+        dtrain = xgb.DMatrix(X_1, label=Y)
+        gbdt = xgb.train(xgb_params, dtrain, n_runs, verbose_eval=False)
+        importance = gbdt.get_fscore()
+        importance = np.array(sorted([ (k, importance[k]) for k in importance ], key=lambda x: x[1], reverse=True))
+        importance = pd.DataFrame(importance,columns=['feature','fscore'])
+        importance['fscore'] = importance['fscore'].astype('int') / importance['fscore'].astype('int').sum()
+        importance.index = importance['feature']
+        del importance['feature']
+        m = np.mean(importance['fscore'])
+        importance['threshold'] = importance['fscore'] > m
+        keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
+        ohe_indices = p1.named_steps['ohe'].feature_indices_
+        ohe_features = sorted(p1.named_steps['ohe'].active_features_[keep])
+        features = [i-1 for i in set(np.digitize(ohe_features,ohe_indices)) ]
+        feature_names = list(train_full.loc[:,CAT_COLS].columns[features])
+        logging.warn('Usable categorical features: \n\t{}'.format(str(feature_names)))
+        if update_columns: CAT_COLS = feature_names
+        newcatcols = feature_names
+
+        ## Numeric columns ##
+        logging.warn('Run for numeric features')
+        dtrain = xgb.DMatrix(X_2, label=Y)
+        gbdt = xgb.train(xgb_params, dtrain, n_runs, verbose_eval=False)
+        importance = gbdt.get_fscore()
+        importance = np.array(sorted([ (k, importance[k]) for k in importance ], key=lambda x: x[1], reverse=True))
+        importance = pd.DataFrame(importance,columns=['feature','fscore'])
+        importance['fscore'] = importance['fscore'].astype('int') / importance['fscore'].astype('int').sum()
+        importance.index = importance['feature']
+        del importance['feature']
+        m = np.mean(importance['fscore'])
+        importance['threshold'] = importance['fscore'] > m
+        keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
+        features = keep
+        feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
+        logging.warn('Usable numeric features: \n\t{}'.format(str(feature_names)))
+        if update_columns: NUM_COLS = feature_names
+        newnumcols = feature_names
 
     if pca: add_pca(newcatcols,newnumcols,5,'pca_minimized_')
     if lda: add_lda(newcatcols,newnumcols,'lda_minimized_')
@@ -795,7 +843,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
     global Y_train
     global Y_test
     global final_X_test
-    global gs_csv
+    global GS_CV
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
@@ -812,7 +860,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
     X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
     Y = cat_full
-    gs_csv = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
 
     if test:
         ## Set up X,Y data for modeling ##
@@ -842,12 +890,12 @@ def final_model(test=True,grid_cv=False,save_results=True):
             xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
             cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X_train, cat_le)
             logging.warn('Best XGB params: {}'.format(cv.best_params_))
-            gs_csv = cv.best_params_
+            GS_CV = cv.best_params_
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
         xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
-                            objective='multi:softprob',seed=0, **gs_csv)
+                            objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X_train , cat_le)
 
         ## Run model with only training data ##
@@ -871,7 +919,7 @@ def final_model(test=True,grid_cv=False,save_results=True):
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
         xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
-                            objective='multi:softprob',seed=0, **gs_csv)
+                            objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
@@ -895,7 +943,7 @@ def run():
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
     component_isolation(method='gradient', update_columns=False, pca=True, lda=True)
-    final_model(test=False, grid_cv=False, save_results=True)
+    final_model(test=False, grid_cv=True, save_results=True)
 
 # if __name__=='__main__':
 #     run()
