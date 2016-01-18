@@ -874,21 +874,6 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
         X_test = np.concatenate((p.transform(X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(X_test[NUM_COLS]))),axis=1)
 
-        if grid_cv:
-            ## Run grid search to find optimal parameters ##
-            params_grid = {
-                            # 'learning_rate':[0.01,0.1,1,10,100] ,
-            		         'max_depth':[ 6, 8, 10] ,
-                             'subsample':[ 0.25, 0.5 ] ,
-                             'colsample_bytree':[ 0.25, 0.5 ] ,
-                    }
-            logging.warn('Running grid search CV with params: {}'.format(params_grid))
-            ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
-            xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
-            cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X_train, cat_le)
-            logging.warn('Best XGB params: {}'.format(cv.best_params_))
-            GS_CV = cv.best_params_
-
         if score:
             ## Run model with only training data ##
             logging.warn('Running model with training data')
@@ -908,6 +893,21 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
                             .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
             logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+
+    if grid_cv:
+        ## Run grid search to find optimal parameters ##
+        params_grid = {
+                        # 'learning_rate':[0.01,0.1,1,10,100] ,
+        		         'max_depth':[ 8, 10, 15, 20] ,
+                         'subsample':[ 0.15, 0.25  ] ,
+                         'colsample_bytree':[ 0.15, 0.25 ] ,
+                }
+        logging.warn('Running grid search CV with params: {}'.format(params_grid))
+        ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
+        xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
+        cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X, Y)
+        logging.warn('Best XGB params: {}'.format(cv.best_params_))
+        GS_CV = cv.best_params_
 
     ## Run model with all data and save ##
     if save_final_results:
@@ -939,7 +939,7 @@ def run():
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=False, lm=False, update_columns=True, pca_n=20)
     component_isolation(method='gradient', update_columns=False, pca=True, lda=True)
-    final_model(test=True, grid_cv=True, score=False, save_final_results=True)
+    final_model(test=True, grid_cv=True, save_final_results=True)
 
 # if __name__=='__main__':
 #     run()
