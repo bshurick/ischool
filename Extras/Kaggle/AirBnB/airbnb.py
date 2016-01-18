@@ -30,6 +30,7 @@ from sklearn.feature_selection import RFECV
 from sklearn import cross_validation
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.grid_search import GridSearchCV
+from sklearn.ensemble import GradientBoostingClassifier
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -308,42 +309,48 @@ def user_features(update_columns=True, newages=False):
     train_full['date_account_created'] = pd.to_datetime(train_full['date_account_created'])
     train_full['created_year'] = train_full['date_account_created'].dt.year
     train_full['created_month'] = train_full['date_account_created'].dt.month
-    # train_full['created_season'] = train_full['date_account_created'].dt.month // 3
+    train_full['created_season'] = (train_full['created_month']-1) // 3
     train_full['created_day_of_week'] = train_full['date_account_created'].dt.dayofweek
     train_full['created_day_of_month'] = train_full['date_account_created'].dt.day
+    train_full['created_part_of_month'] = (train_full['created_day_of_month']-1) // 4
     train_full['created_day_of_year'] = train_full['date_account_created'].dt.dayofyear
     train_full['created_days_ago'] = (DT.datetime.now() - train_full['date_account_created']).dt.days
     train_full['created_months_ago'] = (DT.datetime.now() \
                                             - train_full['date_account_created']).dt.days//30
     train_full['first_active_datetime'] = \
                         pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
-    train_full['first_active_part_of_day'] = train_full['first_active_datetime'].dt.hour // 4
+    train_full['first_active_hour'] = train_full['first_active_datetime'].dt.hour
+    train_full['first_active_part_of_day'] = train_full['first_active_hour'] // 4
 
     ## repeat with final test ##
     final_X_test['date_account_created'] = pd.to_datetime(final_X_test['date_account_created'])
     final_X_test['created_year'] = final_X_test['date_account_created'].dt.year
     final_X_test['created_month'] = final_X_test['date_account_created'].dt.month
-    # final_X_test['created_season'] = final_X_test['date_account_created'].dt.month // 3
+    final_X_test['created_season'] = (final_X_test['created_month']-1) // 3
     final_X_test['created_hour_of_day'] = final_X_test['date_account_created'].dt.hour
     final_X_test['created_day_of_week'] = final_X_test['date_account_created'].dt.dayofweek
     final_X_test['created_day_of_month'] = final_X_test['date_account_created'].dt.day
+    final_X_test['created_part_of_month'] = (final_X_test['created_day_of_month']-1) // 4
     final_X_test['created_day_of_year'] = final_X_test['date_account_created'].dt.dayofyear
     final_X_test['created_days_ago'] = (DT.datetime.now() - final_X_test['date_account_created']).dt.days
     final_X_test['created_months_ago'] = (DT.datetime.now() \
                                             - final_X_test['date_account_created']).dt.days//30
     final_X_test['first_active_datetime'] = \
                         pd.to_datetime(final_X_test['timestamp_first_active'],format='%Y%m%d%H%M%S')
-    final_X_test['first_active_part_of_day'] = final_X_test['first_active_datetime'].dt.hour // 4
+    final_X_test['first_active_hour'] = final_X_test['first_active_datetime'].dt.hour
+    final_X_test['first_active_part_of_day'] = final_X_test['first_active_hour'] // 4
 
     ## Add new columns to model cols ##
     if update_columns:
         CAT_COLS += [
             'created_year',
-            'created_month',
-            # 'created_season',
+            # 'created_month',
+            'created_season',
             'created_day_of_week',
-            'created_day_of_month',
+            # 'created_day_of_month',
+            'created_part_of_month',
             'created_day_of_year',
+            # 'first_active_hour',
             'first_active_part_of_day',
         ]
         NUM_COLS += [
@@ -460,18 +467,20 @@ def add_lda(cat_cols,num_cols,prefix='lda_'):
     NUM_COLS += ['lda_collapsed_' + str(i) for i in range(c)]
 
 # ### Isolate components that are usable ##
-def component_isolation(categorical=True,numeric=True,update_columns=False,pca=False,lda=False):
+def component_isolation(method='gradient',update_columns=False,pca=False,lda=False):
     ''' Determine usable features within categorical and/or numeric features
     '''
     global newcatcols
     global newnumcols
-    abc = DecisionTreeClassifier()
-    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
-    le = LabelEncoder()
-    ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
+    global CAT_COLS
+    global NUM_COLS
 
-    if categorical:
-        global CAT_COLS
+    if method=='rfe':
+        abc = DecisionTreeClassifier()
+        mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+        le = LabelEncoder()
+        ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
+
         logging.warn('Recursively eliminating category features')
         ## Run first with category columns ##
         p = Pipeline([('im',im),('ohe',ohe)])
@@ -490,8 +499,6 @@ def component_isolation(categorical=True,numeric=True,update_columns=False,pca=F
         if update_columns: CAT_COLS = feature_names
         newcatcols = feature_names
 
-    if numeric:
-        global NUM_COLS
         logging.warn('Recursively eliminating numeric features')
         ## Run again with numeric columns ##
         im2 = Imputer(strategy='mean') ; le = LabelEncoder()
@@ -503,8 +510,21 @@ def component_isolation(categorical=True,numeric=True,update_columns=False,pca=F
         features = rfe.support_
         feature_names = list(train_full.loc[:,NUM_COLS].columns[features])
         logging.warn('Usable numeric features: \n\t{}'.format(str(feature_names)))
-        if update_columns: NUM_COLS = feature_names
+        if update_columns: NUM_COLS =q feature_names
         newnumcols = feature_names
+
+    if method=='gradient':
+        logging.warn('Finding feature importance values with GradientBoostingClassifier')
+        abc = GradientBoostingClassifier(n_estimators=100, loss='exponential', max_depth=8
+                                        , subsample=0.25, random_state=0)
+        mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+        im2 = Imputer(strategy='mean')
+        le = LabelEncoder()
+        p1 = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
+        X_1 = p1.fit_transform(train_full[CAT_COLS])
+        X_2 = im2.fit_transform(train_full[NUM_COLS])
+        X = np.concatenate((X_1.todense(),X_2),axis=1)
+
 
     if pca: add_pca(newcatcols,newnumcols,5,'pca_minimized_')
     if lda: add_lda(newcatcols,newnumcols,'lda_minimized_')
@@ -814,9 +834,9 @@ def final_model(test=True,grid_cv=False,save_results=True):
             ## Run grid search to find optimal parameters ##
             params_grid = {
                             # 'learning_rate':[0.01,0.1,1,10,100] ,
-            		         'max_depth':[ 4, 6, 8 ] ,
-                             'subsample':[ 0.25, 0.5, 0.75 ] ,
-                             'colsample_bytree':[ 0.25, 0.5, 0.75 ] ,
+            		         'max_depth':[ 6, 8, 10] ,
+                             'subsample':[ 0.25, 0.5 ] ,
+                             'colsample_bytree':[ 0.25, 0.5 ] ,
                     }
             ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
             xgb = XGBClassifier(n_estimators=10, objective='multi:softprob', seed=0)
@@ -874,7 +894,7 @@ def run():
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
-    component_isolation(categorical=True, numeric=True, update_columns=False, pca=True, lda=True)
+    component_isolation(method='gradient', update_columns=False, pca=True, lda=True)
     final_model(test=False, grid_cv=False, save_results=True)
 
 # if __name__=='__main__':
