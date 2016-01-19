@@ -252,7 +252,7 @@ def declare_args():
     ]
 
     # XGA boost params
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 10}
+    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 6}
 
 # ### Read data
 def load_data():
@@ -937,7 +937,7 @@ def run():
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
     component_isolation(method='gradient', update_columns=False, add_pca=True, add_lda=True)
-    final_model(test=False, grid_cv=True, save_final_results=True)
+    final_model(test=False, grid_cv=False, save_final_results=True)
 
 # if __name__=='__main__':
 #     run()
