@@ -252,7 +252,8 @@ def declare_args():
     ]
 
     # XGA boost params
-    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 6}
+    # GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 8}
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.75, 'max_depth': 15}
 
 # ### Read data
 def load_data():
@@ -386,24 +387,18 @@ def user_features(update_columns=True, newages=False):
         en = ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True)
         en.fit(X,Y)
 
-        # Fill out missing ages
-
+        # Add predicted ages column
         X = np.concatenate((
-                p1.transform(train_full[nullages][CAT_COLS]).todense(),
-                p2.transform(train_full[nullages][[n for n in NUM_COLS if n!='age']]))
+                p1.transform(train_full[CAT_COLS]).todense(),
+                p2.transform(train_full[[n for n in NUM_COLS if n!='age']]))
             ,axis=1)
-        preds = pd.DataFrame({'age':en.predict(X)})
-        preds.index = train_full[nullages].index
-        train_full.loc[preds.index,'age'] = preds.astype('int')
+        train_full['age_pred'] = en.predict(X)
 
-        # Prepare to make predictions
-        nullages = np.isnan(final_X_test['age'])
-        X_1 = p1.transform(final_X_test[nullages][CAT_COLS])
-        X_2 = p2.transform(final_X_test[nullages][[n for n in NUM_COLS if n!='age']])
+        # Prepare to make predictions on test data
+        X_1 = p1.transform(final_X_test[CAT_COLS])
+        X_2 = p2.transform(final_X_test[[n for n in NUM_COLS if n!='age']])
         X = np.concatenate((X_1.todense(),X_2),axis=1)
-        preds = pd.DataFrame({'age':en.predict(X)})
-        preds.index = final_X_test[nullages].index
-        final_X_test.loc[preds.index,'age'] = preds.astype('int')
+        final_X_test['age_pred'] = en.predict(X)
 
 def calc_pca(cat_cols,num_cols,pca_n=5,prefix='pca_'):
     global NUM_COLS
@@ -895,14 +890,13 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
     if grid_cv:
         ## Run grid search to find optimal parameters ##
         params_grid = {
-                        # 'learning_rate':[0.01,0.1,1,10,100] ,
-        		         'max_depth':[ 8, 10, 15, 20] ,
-                         'subsample':[ 0.15, 0.25  ] ,
-                         'colsample_bytree':[ 0.15, 0.25 ] ,
+        		         'max_depth':[ 15, 20, 25 ] ,
+                         'subsample':[ 0.25, 0.5  ] ,
+                        #  'colsample_bytree':[ 0.25, 0.5, 0.75 ] ,
                 }
         logging.warn('Running grid search CV with params: {}'.format(params_grid))
         ndcg = make_scorer(ndcg_score, needs_proba=True, k=5)
-        xgb = XGBClassifier(n_estimators=25, objective='multi:softprob', seed=0)
+        xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', seed=0)
         cv = GridSearchCV(xgb, params_grid, scoring=ndcg).fit(X, Y)
         logging.warn('Best XGB params: {}'.format(cv.best_params_))
         GS_CV = cv.best_params_
@@ -932,12 +926,16 @@ def final_model(test=True,grid_cv=False,score=True,save_final_results=True):
         results_df.to_csv('Data/submission.csv',index=False)
 
 def run():
+    global NUM_COLS
+    global CAT_COLS
     declare_args(); load_data()
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
-    component_isolation(method='gradient', update_columns=False, add_pca=True, add_lda=True)
-    final_model(test=False, grid_cv=False, save_final_results=True)
+    # component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
+    NUM_COLS = ['created_days_ago', 'created_months_ago', 'age', 'pca_session_17', 'pca_session_19', 'pca_session_18', 'pca_session_0', 'pca_session_8', 'pca_session_16', 'pca_session_11', 'pca_session_15', 'pca_session_13', 'pca_session_9', 'pca_session_12', 'pca_session_14', 'pca_session_6', 'pca_session_10', 'session_533', 'pca_session_1', 'pca_session_2', 'pca_session_5', 'session_363', 'session_360', 'pca_session_7', 'lm_19', 'pca_session_3', 'lm_7', 'lm_2', 'lm_8', 'session_370', 'pca_session_4', 'session_518', 'lm_6', 'lm_5', 'lm_0', 'lm_4', 'session_154', 'lm_11', 'session_288', 'session_536', 'lm_1', 'lm_10', 'lm_9', 'lm_3', 'lm_12', 'lm_14', 'session_366', 'lm_17', 'session_457', 'lm_13', 'session_282', 'session_40', 'population_in_thousandsPTmale', 'session_371', 'lm_16', 'lm_15', 'session_364', 'lm_18', 'session_215', 'session_297', 'session_369', 'population_in_thousandsNLmale', 'session_449', 'population_in_thousandsFRfemale', 'session_338', 'session_174', 'population_in_thousandsFRmale', 'population_in_thousandsNLfemale', 'session_100', 'session_522', 'population_in_thousandsPTfemale', 'session_488', 'population_in_thousandsCAfemale', 'session_93', 'session_505', 'population_in_thousandsITfemale', 'session_396', 'population_in_thousandsCAmale', 'population_in_thousandsDEmale', 'session_498', 'population_in_thousandsUSmale', 'population_in_thousandsDEfemale', 'population_in_thousandsAUfemale', 'population_in_thousandsUSfemale', 'session_539', 'population_in_thousandsITmale', 'population_in_thousandsESfemale', 'population_in_thousandsAUmale', 'session_446', 'session_411', 'population_in_thousandsGBfemale', 'session_538', 'session_200', 'population_in_thousandsGBmale', 'population_in_thousandsESmale', 'session_113', 'session_64', 'session_527', 'session_141', 'session_365', 'session_268', 'session_290', 'session_403', 'session_510', 'session_181', 'session_281', 'session_417']
+    CAT_COLS = ['gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser', 'created_year', 'created_month', 'created_season', 'created_day_of_week', 'created_day_of_month', 'created_part_of_month', 'first_active_hour', 'first_active_part_of_day']
+    final_model(test=False, grid_cv=True, save_final_results=True)
 
 # if __name__=='__main__':
 #     run()
