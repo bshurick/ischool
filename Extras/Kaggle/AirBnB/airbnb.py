@@ -253,7 +253,7 @@ def declare_args():
 
     # XGA boost params
     # GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 8}
-    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.75, 'max_depth': 25}
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.75, 'max_depth': 15}
 
 # ### Read data
 def load_data():
@@ -689,6 +689,24 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     train_full.loc[:,sessions_new.columns] = train_full.loc[:,sessions_new.columns].fillna(0)
     final_X_test.loc[:,sessions_new.columns] = final_X_test.loc[:,sessions_new.columns].fillna(0)
 
+    ## Add per day calculations
+    train_full['session_total'] = 0
+    final_X_test['session_total'] = 0
+    subsess = re.compile(r'session_')
+    for s in sessions_new.columns:
+        ## Per day
+        new = subsess.sub('sessionperday_',s)
+        train_full[new] = train_full[s] / train_full['created_days_ago']
+        final_X_test[new] = final_X_test[s] / final_X_test['created_days_ago']
+
+        ## Total
+        train_full['session_total'] += train_full[s]
+        final_X_test['session_total'] += final_X_test[s]
+
+    ## Per day total
+    train_full['sessionperday_total'] = train_full['session_total'] / train_full['created_days_ago']
+    final_X_test['sessionperday_total'] = final_X_test['session_total'] / final_X_test['created_days_ago']
+
     ## Prepare data for feature extraction ##
     target = pd.DataFrame({'country_destination':train_full['country_destination']})
     target.index = train_full['id']
@@ -932,7 +950,7 @@ def run():
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=20)
-    component_isolation(method='gradient', update_columns=True, add_pca=False, add_lda=False)
+    # component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
     # NUM_COLS = ['gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser', 'created_year', 'created_month', 'created_season', 'created_day_of_week', 'created_day_of_month', 'created_part_of_month', 'created_day_of_year', 'first_active_hour', 'first_active_part_of_day']
     # CAT_COLS = ['created_days_ago', 'created_months_ago', 'age', 'pca_session_17', 'pca_session_19', 'pca_session_11', 'pca_session_13', 'pca_session_14', 'pca_session_15', 'pca_session_8', 'pca_session_12', 'pca_session_9', 'pca_session_18', 'pca_session_0', 'pca_session_16', 'pca_session_6', 'pca_session_1', 'session_533', 'pca_session_10', 'pca_session_2', 'pca_session_5', 'session_360', 'lm_7', 'pca_session_7', 'session_363', 'lm_5', 'pca_session_4', 'lm_19', 'pca_session_3', 'lm_0', 'lm_8', 'session_518', 'lm_4', 'session_370', 'lm_2', 'lm_11', 'session_154', 'lm_6', 'session_288', 'session_536', 'lm_1', 'lm_10', 'lm_3', 'lm_9', 'lm_13', 'session_366', 'lm_14', 'lm_15', 'population_in_thousandsPTmale', 'session_457', 'lm_17', 'lm_12', 'lm_16', 'session_282', 'session_40', 'session_371', 'session_364', 'session_297', 'lm_18', 'session_215', 'session_369', 'population_in_thousandsNLmale', 'session_449', 'population_in_thousandsFRfemale', 'session_174', 'session_338', 'population_in_thousandsNLfemale', 'population_in_thousandsFRmale', 'population_in_thousandsPTfemale', 'session_522', 'session_505', 'population_in_thousandsCAfemale', 'session_488', 'session_93', 'session_100', 'population_in_thousandsCAmale', 'population_in_thousandsDEfemale', 'population_in_thousandsITfemale', 'population_in_thousandsUSfemale', 'population_in_thousandsUSmale', 'population_in_thousandsDEmale', 'session_396', 'session_539', 'population_in_thousandsAUfemale', 'session_498', 'population_in_thousandsITmale', 'population_in_thousandsESfemale', 'session_538', 'session_446', 'population_in_thousandsAUmale', 'session_411', 'population_in_thousandsGBfemale', 'session_113', 'session_200', 'population_in_thousandsESmale', 'population_in_thousandsGBmale', 'session_64', 'session_365', 'session_141', 'session_290', 'session_403', 'session_527', 'session_268', 'session_181', 'session_331', 'session_510', 'session_417', 'session_281', 'session_244', 'session_456', 'session_461', 'session_55', 'session_14', 'session_327', 'session_445', 'session_439', 'session_23', 'session_506', 'session_85', 'session_166', 'session_425', 'session_393', 'session_276', 'session_526', 'session_151', 'session_24', 'session_501', 'session_508', 'session_53', 'session_303', 'session_256', 'session_437', 'session_68', 'session_409', 'session_402', 'session_193', 'session_31', 'session_114', 'session_524', 'session_80', 'session_410', 'session_389', 'session_187', 'session_318', 'session_66', 'session_242', 'session_334', 'session_497', 'session_29', 'session_36', 'session_504', 'session_473', 'session_469', 'session_529', 'session_507', 'session_163', 'session_372', 'session_438', 'session_197', 'session_349', 'session_298', 'session_83', 'session_124', 'session_39', 'session_65', 'session_521', 'session_478', 'session_213', 'session_51', 'session_258', 'session_500', 'session_38', 'session_485', 'session_499', 'session_453', 'session_175', 'session_149', 'session_293', 'session_180', 'session_232', 'session_361', 'session_528', 'session_486', 'session_6', 'session_125', 'session_207', 'session_160', 'session_153', 'session_162', 'session_448', 'session_233', 'session_179', 'session_434', 'session_105', 'session_471', 'session_381', 'session_78', 'session_206', 'session_368', 'session_287', 'session_480', 'session_386', 'session_277', 'session_458', 'session_444', 'session_161', 'session_87', 'session_535', 'session_216', 'session_245', 'session_463', 'session_443', 'session_454', 'session_190', 'session_462', 'session_28', 'session_266', 'session_138', 'session_455', 'session_441', 'session_433', 'session_159', 'session_447', 'session_123', 'session_476', 'session_259', 'session_72', 'session_199', 'session_416', 'session_294', 'session_205', 'session_19', 'session_494', 'session_27', 'session_252', 'session_255', 'session_157', 'session_315', 'session_435', 'session_291', 'session_532', 'session_243', 'session_96', 'session_211', 'session_436', 'session_407', 'session_43', 'session_246', 'session_496', 'session_2', 'session_54', 'session_531', 'session_173', 'session_126', 'session_374', 'session_325', 'session_57', 'session_423', 'session_0', 'session_172', 'session_169', 'session_316', 'session_490', 'session_104', 'session_442', 'session_91', 'session_81', 'session_385', 'session_119', 'session_262', 'session_285', 'session_487', 'session_468', 'session_56', 'session_347', 'session_344', 'session_333', 'session_509', 'session_82', 'session_440', 'session_69', 'session_18', 'session_514', 'session_230', 'session_354', 'session_88', 'session_3', 'session_391', 'session_222', 'session_67', 'session_474', 'session_286', 'session_278', 'session_323', 'session_165', 'session_132', 'session_251', 'session_253', 'session_223', 'session_241', 'session_131', 'session_25', 'session_70', 'session_152', 'session_214', 'session_421', 'session_375', 'session_465', 'session_182', 'session_317', 'session_418', 'session_4', 'session_112', 'session_292', 'session_428', 'session_422', 'session_523', 'session_184', 'session_308', 'session_156', 'session_404', 'session_328', 'session_92', 'session_320', 'session_311', 'session_313', 'session_248', 'session_250', 'session_424', 'session_135', 'session_220', 'session_117', 'session_376', 'session_188', 'session_307', 'session_148', 'session_158', 'session_226', 'session_225', 'session_419', 'session_346', 'session_46', 'session_269', 'session_202', 'session_49', 'session_477', 'session_133', 'session_483', 'session_382', 'session_118', 'session_342', 'session_275', 'session_495', 'session_491', 'session_17', 'session_26', 'session_33', 'session_32', 'session_1', 'session_503', 'session_394', 'session_329', 'session_50', 'session_482', 'session_212', 'session_128', 'session_384', 'session_221', 'session_502', 'session_109', 'session_525', 'session_530', 'session_37', 'session_332', 'session_427', 'session_405', 'session_204', 'session_98', 'session_47']
     final_model(test=False, grid_cv=False, save_final_results=True)
