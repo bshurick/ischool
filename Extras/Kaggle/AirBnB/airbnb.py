@@ -760,112 +760,112 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
         final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
         if update_columns: NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
-    if lm:
-        ## Create prediction model for PCA features ##
-        logging.warn('Creating regression model for session features')
-        components = len(session_columns)
+        if lm:
+            ## Create prediction model for PCA features ##
+            logging.warn('Creating regression model for session features')
+            components = pca_n if pca_n else len(session_columns)
 
-        ## Split out category and numeric columns ##
-        tr_cat = train_full.loc[:,CAT_COLS]
-        tr_cat.index = train_full['id']
-        tr_num = train_full.loc[:,NUM_COLS]
-        tr_num.index = train_full['id']
+            ## Split out category and numeric columns ##
+            tr_cat = train_full.loc[:,CAT_COLS]
+            tr_cat.index = train_full['id']
+            tr_num = train_full.loc[:,NUM_COLS]
+            tr_num.index = train_full['id']
 
-        final_tst_cat = final_X_test.loc[:,CAT_COLS]
-        final_tst_cat.index = final_X_test['id']
-        final_tst_num = final_X_test.loc[:,NUM_COLS]
-        final_tst_num.index = final_X_test['id']
+            final_tst_cat = final_X_test.loc[:,CAT_COLS]
+            final_tst_cat.index = final_X_test['id']
+            final_tst_num = final_X_test.loc[:,NUM_COLS]
+            final_tst_num.index = final_X_test['id']
 
-        ## Merge with new features ##
-        nonzeros = train_full['session_total'] > 0
-        merged_cats = pd.merge(tr_cat \
-                                , train_full.loc[nonzeros,session_columns] \
-                                , how='inner' \
-                                , left_index=True \
-                                , right_index=True  )
-        merged_nums = pd.merge(tr_num \
-                                , train_full.loc[nonzeros,session_columns] \
-                                , how='inner' \
-                                , left_index=True \
-                                , right_index=True  )
-        mcl = MultiColumnLabelEncoder()
-        mm = MinMaxScaler()
-        ohe = OneHotEncoder()
-        ss = StandardScaler(with_mean=False)
-        ii = Imputer(strategy='most_frequent')
-        ii2 = Imputer(strategy='mean')
-        p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
-        p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
+            ## Merge with new features ##
+            nonzeros = train_full['session_total'] > 0
+            merged_cats = pd.merge(tr_cat \
+                                    , tr_pca.loc[nonzeros,:] \
+                                    , how='inner' \
+                                    , left_index=True \
+                                    , right_index=True  )
+            merged_nums = pd.merge(tr_num \
+                                    , tr_pca.loc[nonzeros,:] \
+                                    , how='inner' \
+                                    , left_index=True \
+                                    , right_index=True  )
+            mcl = MultiColumnLabelEncoder()
+            mm = MinMaxScaler()
+            ohe = OneHotEncoder()
+            ss = StandardScaler(with_mean=False)
+            ii = Imputer(strategy='most_frequent')
+            ii2 = Imputer(strategy='mean')
+            p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+            p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
 
-        trcat_transformed = p1.fit_transform(tr_cat).todense()
-        trnum_transformed = p2.fit_transform(tr_num)
-        trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
+            trcat_transformed = p1.fit_transform(tr_cat).todense()
+            trnum_transformed = p2.fit_transform(tr_num)
+            trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
 
-        tstcat_final_transformed = p1.transform(final_tst_cat).todense()
-        tstnum_final_transformed = p2.transform(final_tst_num)
-        tstcombined_final = np.concatenate((tstcat_final_transformed, tstnum_final_transformed), axis=1)
+            tstcat_final_transformed = p1.transform(final_tst_cat).todense()
+            tstnum_final_transformed = p2.transform(final_tst_num)
+            tstcombined_final = np.concatenate((tstcat_final_transformed, tstnum_final_transformed), axis=1)
 
-        mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
-        mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
-        mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
-        #
-        # lm_cvs = [ ElasticNetCV( \
-        #             l1_ratio=[.1, .5, .7, .9, .95, 1] \
-        #             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
-        #             , max_iter=1000, n_jobs=2
-        #         ) \
-        #         for l in np.arange(components) ]
-        # for i,lm in enumerate(lm_cvs):
-        #     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+            mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
+            mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
+            mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
+            #
+            # lm_cvs = [ ElasticNetCV( \
+            #             l1_ratio=[.1, .5, .7, .9, .95, 1] \
+            #             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
+            #             , max_iter=1000, n_jobs=2
+            #         ) \
+            #         for l in np.arange(components) ]
+            # for i,lm in enumerate(lm_cvs):
+            #     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
 
-        # for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
-        # lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
-                    # for l in lm_cvs ]
-        lms = [ ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True) \
-                    for l in np.arange(components) ]
+            # for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
+            # lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+                        # for l in lm_cvs ]
+            lms = [ ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True) \
+                        for l in np.arange(components) ]
 
-        for i,lm in enumerate(lms):
-            lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
-            train_full.loc[:,'lm_'+str(i)] = lm.predict(trcombined)
-            final_X_test.loc[:,'lm_'+str(i)] = lm.predict(tstcombined_final)
-            lms[i] = lm
+            for i,lm in enumerate(lms):
+                lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+                train_full.loc[:,'lm_'+str(i)] = lm.predict(trcombined)
+                final_X_test.loc[:,'lm_'+str(i)] = lm.predict(tstcombined_final)
+                lms[i] = lm
 
-        # merged_tst = pd.merge(X_test \
-        #                         , lm_features \
-        #                         , how='inner' \
-        #                         , left_index=True \
-        #                         , right_index=True  )
-        # for i in range(components):
-        #     logging.warn('MSE {}: {}'.format(i \
-        #         , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
-        #                                         - merged_tst[i])**2))) \
-        #     ))
-            # train_full.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
-            # X_test.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
+            # merged_tst = pd.merge(X_test \
+            #                         , lm_features \
+            #                         , how='inner' \
+            #                         , left_index=True \
+            #                         , right_index=True  )
+            # for i in range(components):
+            #     logging.warn('MSE {}: {}'.format(i \
+            #         , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
+            #                                         - merged_tst[i])**2))) \
+            #     ))
+                # train_full.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
+                # X_test.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
 
-        if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
+            if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
 
-        ## Add per day calculations
-        train_full['lm_total'] = 0
-        final_X_test['lm_total'] = 0
+            ## Add per day calculations
+            train_full['lm_total'] = 0
+            final_X_test['lm_total'] = 0
 
-        sublm = re.compile(r'lm_')
+            sublm = re.compile(r'lm_')
 
-        for s in [ 'lm_'+str(i) for i in range(components) ]:
-            ## Per day
-            new = sublm.sub('lmperday_',s)
-            train_full[new] = train_full[s] / train_full['created_days_ago']
-            final_X_test[new] = final_X_test[s] / final_X_test['created_days_ago']
-            if update_columns: NUM_COLS += [new]
+            for s in [ 'lm_'+str(i) for i in range(components) ]:
+                ## Per day
+                new = sublm.sub('lmperday_',s)
+                train_full[new] = train_full[s] / train_full['created_days_ago']
+                final_X_test[new] = final_X_test[s] / final_X_test['created_days_ago']
+                if update_columns: NUM_COLS += [new]
 
-            ## Total
-            train_full['lm_total'] += train_full[s]
-            final_X_test['lm_total'] += final_X_test[s]
+                ## Total
+                train_full['lm_total'] += train_full[s]
+                final_X_test['lm_total'] += final_X_test[s]
 
-        ## Per day total
-        train_full['lmperday_total'] = train_full['lm_total'] / train_full['created_days_ago']
-        final_X_test['lmperday_total'] = final_X_test['lm_total'] / final_X_test['created_days_ago']
-        if update_columns: NUM_COLS += ['lm_total','lmperday_total']
+            ## Per day total
+            train_full['lmperday_total'] = train_full['lm_total'] / train_full['created_days_ago']
+            final_X_test['lmperday_total'] = final_X_test['lm_total'] / final_X_test['created_days_ago']
+            if update_columns: NUM_COLS += ['lm_total','lmperday_total']
 
 def compile_nn():
     nn_model = Sequential()
