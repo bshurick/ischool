@@ -253,7 +253,7 @@ def declare_args():
 
     # XGA boost params
     # GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 8}
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.75, 'max_depth': 15}
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.75, 'max_depth': 12}
 
 # ### Read data
 def load_data():
@@ -692,20 +692,23 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     ## Add per day calculations
     train_full['session_total'] = 0
     final_X_test['session_total'] = 0
+
     subsess = re.compile(r'session_')
+
     for s in sessions_new.columns:
         ## Per day
         new = subsess.sub('sessionperday_',s)
         train_full[new] = train_full[s] / train_full['created_days_ago']
         final_X_test[new] = final_X_test[s] / final_X_test['created_days_ago']
+        if update_columns: NUM_COLS += [new]
 
         ## Total
         train_full['session_total'] += train_full[s]
         final_X_test['session_total'] += final_X_test[s]
 
-    ## Per day total
     train_full['sessionperday_total'] = train_full['session_total'] / train_full['created_days_ago']
     final_X_test['sessionperday_total'] = final_X_test['session_total'] / final_X_test['created_days_ago']
+    if update_columns: NUM_COLS += ['session_total','sessionperday_total']
 
     ## Prepare data for feature extraction ##
     target = pd.DataFrame({'country_destination':train_full['country_destination']})
@@ -741,7 +744,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
     ## PCA ##
     if pca:
         logging.warn('Collapse session features with PCA')
-        c = pca_n
+        c = pca_n if pca_n else len(session_columns)
         pca = PCA(n_components=c)
         ss = StandardScaler()
         tr_pca = pd.DataFrame( pca.fit_transform(ss.fit_transform(train_full.loc[:,session_columns])) \
@@ -757,89 +760,123 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
         final_X_test = pd.concat([final_X_test,fnl_pca],axis=1)
         if update_columns: NUM_COLS += ['pca_session_' + str(i) for i in range(c)]
 
-        if lm:
-            ## Create prediction model for PCA features ##
-            logging.warn('Creating regression model for session features')
-            components = pca_n
+    if lm:
+        ## Create prediction model for PCA features ##
+        logging.warn('Creating regression model for session features')
+        components = len(session_columns)
 
-            ## Split out category and numeric columns ##
-            tr_cat = train_full.loc[:,CAT_COLS]
-            tr_cat.index = train_full['id']
-            tr_num = train_full.loc[:,NUM_COLS]
-            tr_num.index = train_full['id']
+        ## Split out category and numeric columns ##
+        tr_cat = train_full.loc[:,CAT_COLS]
+        tr_cat.index = train_full['id']
+        tr_num = train_full.loc[:,NUM_COLS]
+        tr_num.index = train_full['id']
 
-            final_tst_cat = final_X_test.loc[:,CAT_COLS]
-            final_tst_cat.index = final_X_test['id']
-            final_tst_num = final_X_test.loc[:,NUM_COLS]
-            final_tst_num.index = final_X_test['id']
+        final_tst_cat = final_X_test.loc[:,CAT_COLS]
+        final_tst_cat.index = final_X_test['id']
+        final_tst_num = final_X_test.loc[:,NUM_COLS]
+        final_tst_num.index = final_X_test['id']
 
-            ## Merge with new features ##
-            merged_cats = pd.merge(tr_cat \
-                                    , tr_pca \
-                                    , how='inner' \
-                                    , left_index=True \
-                                    , right_index=True  )
-            merged_nums = pd.merge(tr_num \
-                                    , tr_pca \
-                                    , how='inner' \
-                                    , left_index=True \
-                                    , right_index=True  )
-            mcl = MultiColumnLabelEncoder()
-            mm = MinMaxScaler()
-            ohe = OneHotEncoder()
-            ss = StandardScaler(with_mean=False)
-            ii = Imputer(strategy='most_frequent')
-            ii2 = Imputer(strategy='mean')
-            p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
-            p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
+        ## Merge with new features ##
+        nonzeros = train_full['session_total'] > 0
+        merged_cats = pd.merge(tr_cat \
+                                , train_full.loc[nonzeros,session_columns] \
+                                , how='inner' \
+                                , left_index=True \
+                                , right_index=True  )
+        merged_nums = pd.merge(tr_num \
+                                , train_full.loc[nonzeros,session_columns] \
+                                , how='inner' \
+                                , left_index=True \
+                                , right_index=True  )
+        mcl = MultiColumnLabelEncoder()
+        mm = MinMaxScaler()
+        ohe = OneHotEncoder()
+        ss = StandardScaler(with_mean=False)
+        ii = Imputer(strategy='most_frequent')
+        ii2 = Imputer(strategy='mean')
+        p1 = Pipeline([('mcl',mcl),('ii',ii),('ohe',ohe)])
+        p2 = Pipeline([('ii',ii2),('ss',ss),('mm',mm)])
 
-            trcat_transformed = p1.fit_transform(tr_cat).todense()
-            trnum_transformed = p2.fit_transform(tr_num)
-            trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
+        trcat_transformed = p1.fit_transform(tr_cat).todense()
+        trnum_transformed = p2.fit_transform(tr_num)
+        trcombined = np.concatenate((trcat_transformed, trnum_transformed), axis=1)
 
-            tstcat_final_transformed = p1.transform(final_tst_cat).todense()
-            tstnum_final_transformed = p2.transform(final_tst_num)
-            tstcombined_final = np.concatenate((tstcat_final_transformed, tstnum_final_transformed), axis=1)
+        tstcat_final_transformed = p1.transform(final_tst_cat).todense()
+        tstnum_final_transformed = p2.transform(final_tst_num)
+        tstcombined_final = np.concatenate((tstcat_final_transformed, tstnum_final_transformed), axis=1)
 
-            mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
-            mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
-            mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
-            #
-            # lm_cvs = [ ElasticNetCV( \
-            #             l1_ratio=[.1, .5, .7, .9, .95, 1] \
-            #             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
-            #             , max_iter=1000, n_jobs=2
-            #         ) \
-            #         for l in np.arange(components) ]
-            # for i,lm in enumerate(lm_cvs):
-            #     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+        mcat_transformed = p1.transform(merged_cats.iloc[:,:-1*components]).todense()
+        mnum_transformed = p2.transform(merged_nums.iloc[:,:-1*components])
+        mcombined = np.concatenate((mcat_transformed, mnum_transformed), axis=1)
+        #
+        # lm_cvs = [ ElasticNetCV( \
+        #             l1_ratio=[.1, .5, .7, .9, .95, 1] \
+        #             , alphas=[0.001,0.01,0.05,0.1,0.5,0.9] \
+        #             , max_iter=1000, n_jobs=2
+        #         ) \
+        #         for l in np.arange(components) ]
+        # for i,lm in enumerate(lm_cvs):
+        #     lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
 
-            # for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
-            # lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
-                        # for l in lm_cvs ]
-            lms = [ ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True) \
-                        for l in np.arange(components) ]
+        # for l in lm_cvs: logging.warn('L1: {} Alpha: {}'.format(l.l1_ratio_,l.alpha_))
+        # lms = [ ElasticNet(l1_ratio=l.l1_ratio_, alpha=l.alpha_, normalize=True) \
+                    # for l in lm_cvs ]
+        lms = [ ElasticNet(l1_ratio=1.0, alpha=0.001, normalize=True) \
+                    for l in np.arange(components) ]
 
-            for i,lm in enumerate(lms):
-                lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
-                train_full.loc[:,'lm_'+str(i)] = lm.predict(trcombined)
-                final_X_test.loc[:,'lm_'+str(i)] = lm.predict(tstcombined_final)
-                lms[i] = lm
+        for i,lm in enumerate(lms):
+            lm.fit(mcombined, merged_cats.iloc[:,merged_cats.shape[1]-i-1])
+            train_full.loc[:,'lm_'+str(i)] = lm.predict(trcombined)
+            final_X_test.loc[:,'lm_'+str(i)] = lm.predict(tstcombined_final)
+            lms[i] = lm
 
-            # merged_tst = pd.merge(X_test \
-            #                         , lm_features \
-            #                         , how='inner' \
-            #                         , left_index=True \
-            #                         , right_index=True  )
-            # for i in range(components):
-            #     logging.warn('MSE {}: {}'.format(i \
-            #         , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
-            #                                         - merged_tst[i])**2))) \
-            #     ))
-                # train_full.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
-                # X_test.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
+        # merged_tst = pd.merge(X_test \
+        #                         , lm_features \
+        #                         , how='inner' \
+        #                         , left_index=True \
+        #                         , right_index=True  )
+        # for i in range(components):
+        #     logging.warn('MSE {}: {}'.format(i \
+        #         , np.sqrt(np.mean(np.sum((merged_tst['lm_'+str(i)] \
+        #                                         - merged_tst[i])**2))) \
+        #     ))
+            # train_full.loc[merged_nums.index,'lm_'+str(i)] = merged_nums[i]
+            # X_test.loc[merged_nums_tst.index,'lm_'+str(i)] = merged_nums_tst[i]
 
-            if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
+        if update_columns: NUM_COLS += [ 'lm_'+str(i) for i in range(components) ]
+
+        ## Add per day calculations
+        train_full['lm_total'] = 0
+        final_X_test['lm_total'] = 0
+
+        sublm = re.compile(r'lm_')
+
+        for s in [ 'lm_'+str(i) for i in range(components) ]:
+            ## Per day
+            new = sublm.sub('lmperday_',s)
+            train_full[new] = train_full[s] / train_full['created_days_ago']
+            final_X_test[new] = final_X_test[s] / final_X_test['created_days_ago']
+            if update_columns: NUM_COLS += [new]
+
+            ## Total
+            train_full['lm_total'] += train_full[s]
+            final_X_test['lm_total'] += final_X_test[s]
+
+        ## Per day total
+        train_full['lmperday_total'] = train_full['lm_total'] / train_full['created_days_ago']
+        final_X_test['lmperday_total'] = final_X_test['lm_total'] / final_X_test['created_days_ago']
+        if update_columns: NUM_COLS += ['lm_total','lmperday_total']
+
+def compile_nn():
+    nn_model = Sequential()
+    nn_model.add(Dense(output_dim=24, input_dim=X.shape[1], \
+        init="glorot_uniform", W_regularizer=l2(0.01)))
+    nn_model.add(Activation("softmax"))
+    nn_model.add(Dense(output_dim=Y.shape[1], input_dim=24))
+    nn_model.add(Activation("softmax"))
+    nn_model.add(Activation("relu"))
+    nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
+    return nn_model
 
 # ### Run final model ##
 def final_model(test=True,grid_cv=False,save_final_results=True):
@@ -955,7 +992,9 @@ def neural_model(test=True,save_final_results=True):
 
     logging.warn('Create neural model with training data')
     ## Encode categories ##
+    le = LabelEncoder()
     lb = LabelBinarizer()
+    cat_full = le.fit_transform(np.array(target_full).ravel())
     cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
 
     mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
@@ -967,12 +1006,7 @@ def neural_model(test=True,save_final_results=True):
     Y = cat_full_lb
 
     ## Neural Network ##
-    model = Sequential()
-    model.add(Dense(output_dim=64, input_dim=X.shape[1], init="glorot_uniform"))
-    model.add(Activation("softmax"))
-    model.add(Dense(output_dim=Y.shape[1], input_dim=64))
-    model.add(Activation("softmax"))
-    model.compile(loss='categorical_crossentropy', optimizer='sgd')
+    model = compile_nn()
 
     if test:
         ## Set up X,Y data for modeling ##
@@ -990,7 +1024,8 @@ def neural_model(test=True,save_final_results=True):
 
         ## Run model with only training data ##
         logging.warn('Running model with training data')
-        model.fit(X_train , cat_lb, nb_epoch=10, batch_size=128)
+        model.fit(X_train, cat_lb, batch_size=128, nb_epoch=10,
+            validation_data=(X_test, cat_tst_lb))
 
         ## Run model with only training data ##
         logging.warn('Test prediction accuracy')
@@ -1011,10 +1046,77 @@ def neural_model(test=True,save_final_results=True):
         '''
         logging.warn('Make predictions for final test set')
         logging.warn('Running model with all training data')
-        model.fit(X, Y, nb_epoch=10, batch_size=128)
+        model.fit(X, Y, nb_epoch=25, batch_size=128)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = model.predict_proba(X)
+
+        ## Write to submission file ##
+        k = 5
+        results = np.sort(f_pred)[:,::-1][:,:k].ravel()
+        labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
+        ids = np.array(final_X_test['id'])
+        ids = np.array([ ids for i in range(k) ]).T.ravel()
+        results_df = pd.DataFrame({'id':ids})
+        results_df['country'] = labels
+        results_df.to_csv('Data/submission.csv',index=False)
+
+def combi_model(test=True,save_final_results=True):
+    global train_full
+    global target_full
+    global X_train
+    global X_test
+    global Y_train
+    global Y_test
+    global final_X_test
+    global GS_CV
+
+    logging.warn('Create neural model with training data')
+
+    ## Encode categories ##
+    le = LabelEncoder()
+    lb = LabelBinarizer()
+    cat_full = le.fit_transform(np.array(target_full).ravel())
+    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
+
+    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+    im2 = Imputer(strategy='mean')
+    p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
+
+    ## full dataset ##
+    X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
+                            ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
+    X_p = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
+                            ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
+    Y = cat_full_lb
+
+    ## Neural Network ##
+    nn_model = compile_nn()
+
+    ## NN weighting mult ##
+    mix = 0.1
+
+    if save_final_results:
+        ''' Write results to a csv file
+            NOTE: sorting is not done here
+        '''
+        logging.warn('Make predictions for final test set')
+        logging.warn('Running model with all training data')
+
+        nn_model.fit(X, Y, nb_epoch=25, batch_size=128)
+        xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
+                            objective='multi:softprob',seed=0, **GS_CV)
+        Y = cat_full
+        xgb.fit(X , Y)
+
+        ## Make predictions ##
+        f_pred_nn = model.predict_proba(X_p)
+        f_pred_xgb = xgb.predict_proba(X_p)
+
+        ## merge models ##
+        f_pred_nn *= mix
+        f_pred_xgb *= (1-mix)
+        f_pred = f_pred_nn + f_pred_xgb
 
         ## Write to submission file ##
         k = 5
@@ -1032,12 +1134,11 @@ def run():
     declare_args(); load_data()
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=False, lm=True, update_columns=True, pca_n=20)
+    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=250)
     # component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
-    # NUM_COLS = ['gender', 'signup_method', 'signup_flow', 'language', 'affiliate_channel', 'affiliate_provider', 'first_affiliate_tracked', 'signup_app', 'first_device_type', 'first_browser', 'created_year', 'created_month', 'created_season', 'created_day_of_week', 'created_day_of_month', 'created_part_of_month', 'created_day_of_year', 'first_active_hour', 'first_active_part_of_day']
-    # CAT_COLS = ['created_days_ago', 'created_months_ago', 'age', 'pca_session_17', 'pca_session_19', 'pca_session_11', 'pca_session_13', 'pca_session_14', 'pca_session_15', 'pca_session_8', 'pca_session_12', 'pca_session_9', 'pca_session_18', 'pca_session_0', 'pca_session_16', 'pca_session_6', 'pca_session_1', 'session_533', 'pca_session_10', 'pca_session_2', 'pca_session_5', 'session_360', 'lm_7', 'pca_session_7', 'session_363', 'lm_5', 'pca_session_4', 'lm_19', 'pca_session_3', 'lm_0', 'lm_8', 'session_518', 'lm_4', 'session_370', 'lm_2', 'lm_11', 'session_154', 'lm_6', 'session_288', 'session_536', 'lm_1', 'lm_10', 'lm_3', 'lm_9', 'lm_13', 'session_366', 'lm_14', 'lm_15', 'population_in_thousandsPTmale', 'session_457', 'lm_17', 'lm_12', 'lm_16', 'session_282', 'session_40', 'session_371', 'session_364', 'session_297', 'lm_18', 'session_215', 'session_369', 'population_in_thousandsNLmale', 'session_449', 'population_in_thousandsFRfemale', 'session_174', 'session_338', 'population_in_thousandsNLfemale', 'population_in_thousandsFRmale', 'population_in_thousandsPTfemale', 'session_522', 'session_505', 'population_in_thousandsCAfemale', 'session_488', 'session_93', 'session_100', 'population_in_thousandsCAmale', 'population_in_thousandsDEfemale', 'population_in_thousandsITfemale', 'population_in_thousandsUSfemale', 'population_in_thousandsUSmale', 'population_in_thousandsDEmale', 'session_396', 'session_539', 'population_in_thousandsAUfemale', 'session_498', 'population_in_thousandsITmale', 'population_in_thousandsESfemale', 'session_538', 'session_446', 'population_in_thousandsAUmale', 'session_411', 'population_in_thousandsGBfemale', 'session_113', 'session_200', 'population_in_thousandsESmale', 'population_in_thousandsGBmale', 'session_64', 'session_365', 'session_141', 'session_290', 'session_403', 'session_527', 'session_268', 'session_181', 'session_331', 'session_510', 'session_417', 'session_281', 'session_244', 'session_456', 'session_461', 'session_55', 'session_14', 'session_327', 'session_445', 'session_439', 'session_23', 'session_506', 'session_85', 'session_166', 'session_425', 'session_393', 'session_276', 'session_526', 'session_151', 'session_24', 'session_501', 'session_508', 'session_53', 'session_303', 'session_256', 'session_437', 'session_68', 'session_409', 'session_402', 'session_193', 'session_31', 'session_114', 'session_524', 'session_80', 'session_410', 'session_389', 'session_187', 'session_318', 'session_66', 'session_242', 'session_334', 'session_497', 'session_29', 'session_36', 'session_504', 'session_473', 'session_469', 'session_529', 'session_507', 'session_163', 'session_372', 'session_438', 'session_197', 'session_349', 'session_298', 'session_83', 'session_124', 'session_39', 'session_65', 'session_521', 'session_478', 'session_213', 'session_51', 'session_258', 'session_500', 'session_38', 'session_485', 'session_499', 'session_453', 'session_175', 'session_149', 'session_293', 'session_180', 'session_232', 'session_361', 'session_528', 'session_486', 'session_6', 'session_125', 'session_207', 'session_160', 'session_153', 'session_162', 'session_448', 'session_233', 'session_179', 'session_434', 'session_105', 'session_471', 'session_381', 'session_78', 'session_206', 'session_368', 'session_287', 'session_480', 'session_386', 'session_277', 'session_458', 'session_444', 'session_161', 'session_87', 'session_535', 'session_216', 'session_245', 'session_463', 'session_443', 'session_454', 'session_190', 'session_462', 'session_28', 'session_266', 'session_138', 'session_455', 'session_441', 'session_433', 'session_159', 'session_447', 'session_123', 'session_476', 'session_259', 'session_72', 'session_199', 'session_416', 'session_294', 'session_205', 'session_19', 'session_494', 'session_27', 'session_252', 'session_255', 'session_157', 'session_315', 'session_435', 'session_291', 'session_532', 'session_243', 'session_96', 'session_211', 'session_436', 'session_407', 'session_43', 'session_246', 'session_496', 'session_2', 'session_54', 'session_531', 'session_173', 'session_126', 'session_374', 'session_325', 'session_57', 'session_423', 'session_0', 'session_172', 'session_169', 'session_316', 'session_490', 'session_104', 'session_442', 'session_91', 'session_81', 'session_385', 'session_119', 'session_262', 'session_285', 'session_487', 'session_468', 'session_56', 'session_347', 'session_344', 'session_333', 'session_509', 'session_82', 'session_440', 'session_69', 'session_18', 'session_514', 'session_230', 'session_354', 'session_88', 'session_3', 'session_391', 'session_222', 'session_67', 'session_474', 'session_286', 'session_278', 'session_323', 'session_165', 'session_132', 'session_251', 'session_253', 'session_223', 'session_241', 'session_131', 'session_25', 'session_70', 'session_152', 'session_214', 'session_421', 'session_375', 'session_465', 'session_182', 'session_317', 'session_418', 'session_4', 'session_112', 'session_292', 'session_428', 'session_422', 'session_523', 'session_184', 'session_308', 'session_156', 'session_404', 'session_328', 'session_92', 'session_320', 'session_311', 'session_313', 'session_248', 'session_250', 'session_424', 'session_135', 'session_220', 'session_117', 'session_376', 'session_188', 'session_307', 'session_148', 'session_158', 'session_226', 'session_225', 'session_419', 'session_346', 'session_46', 'session_269', 'session_202', 'session_49', 'session_477', 'session_133', 'session_483', 'session_382', 'session_118', 'session_342', 'session_275', 'session_495', 'session_491', 'session_17', 'session_26', 'session_33', 'session_32', 'session_1', 'session_503', 'session_394', 'session_329', 'session_50', 'session_482', 'session_212', 'session_128', 'session_384', 'session_221', 'session_502', 'session_109', 'session_525', 'session_530', 'session_37', 'session_332', 'session_427', 'session_405', 'session_204', 'session_98', 'session_47']
-    # final_model(test=False, grid_cv=False, save_final_results=True)
-    neural_model(test=False, save_final_results=True)
+    final_model(test=False, grid_cv=False, save_final_results=True)
+    # neural_model(test=False, save_final_results=True)
+    # combi_model(test=False,save_final_results=True)
 
 # if __name__=='__main__':
 #     run()
