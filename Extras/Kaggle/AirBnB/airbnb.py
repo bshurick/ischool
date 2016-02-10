@@ -869,19 +869,19 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
             final_X_test['lmperday_total'] = final_X_test['lm_total'] / final_X_test['created_days_ago']
             if update_columns: NUM_COLS += ['lm_total','lmperday_total']
 
-def compile_nn():
+def compile_nn(input_dim, output_dim):
     nn_model = Sequential()
-    nn_model.add(Dense(output_dim=24, input_dim=X.shape[1], \
+    nn_model.add(Dense(output_dim=24, input_dim=input_dim, \
         init="glorot_uniform", W_regularizer=l2(0.01)))
     nn_model.add(Activation("softmax"))
-    nn_model.add(Dense(output_dim=Y.shape[1], input_dim=24))
+    nn_model.add(Dense(output_dim=output_dim, input_dim=24))
     nn_model.add(Activation("softmax"))
     nn_model.add(Activation("relu"))
     nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
     return nn_model
 
-# ### Run final model ##
-def final_model(test=True,grid_cv=False,save_final_results=True):
+# ### Run forest model ##
+def forest_model(test=True,grid_cv=False,save_final_results=True):
     ''' execute final model
     '''
     global train_full
@@ -892,6 +892,7 @@ def final_model(test=True,grid_cv=False,save_final_results=True):
     global Y_test
     global final_X_test
     global GS_CV
+    global f_pred
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
@@ -964,23 +965,12 @@ def final_model(test=True,grid_cv=False,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        logging.warn('Running model with all training data')
         xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
                             objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X , Y)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = xgb.predict_proba(X)
-
-        ## Write to submission file ##
-        k = 5
-        results = np.sort(f_pred)[:,::-1][:,:k].ravel()
-        labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
-        ids = np.array(final_X_test['id'])
-        ids = np.array([ ids for i in range(k) ]).T.ravel()
-        results_df = pd.DataFrame({'id':ids})
-        results_df['country'] = labels
-        results_df.to_csv('Data/submission.csv',index=False)
 
 def neural_model(test=True,save_final_results=True):
     global train_full
@@ -991,6 +981,7 @@ def neural_model(test=True,save_final_results=True):
     global Y_test
     global final_X_test
     global GS_CV
+    global f_pred
 
     logging.warn('Create neural model with training data')
     ## Encode categories ##
@@ -1008,7 +999,7 @@ def neural_model(test=True,save_final_results=True):
     Y = cat_full_lb
 
     ## Neural Network ##
-    model = compile_nn()
+    model = compile_nn(X.shape[1],Y.shape[1])
 
     if test:
         ## Set up X,Y data for modeling ##
@@ -1047,88 +1038,10 @@ def neural_model(test=True,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        logging.warn('Running model with all training data')
         model.fit(X, Y, nb_epoch=25, batch_size=128)
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = model.predict_proba(X)
-
-        ## Write to submission file ##
-        k = 5
-        results = np.sort(f_pred)[:,::-1][:,:k].ravel()
-        labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
-        ids = np.array(final_X_test['id'])
-        ids = np.array([ ids for i in range(k) ]).T.ravel()
-        results_df = pd.DataFrame({'id':ids})
-        results_df['country'] = labels
-        results_df.to_csv('Data/submission.csv',index=False)
-
-def combi_model(test=True,save_final_results=True):
-    global train_full
-    global target_full
-    global X_train
-    global X_test
-    global Y_train
-    global Y_test
-    global final_X_test
-    global GS_CV
-
-    logging.warn('Create neural model with training data')
-
-    ## Encode categories ##
-    le = LabelEncoder()
-    lb = LabelBinarizer()
-    cat_full = le.fit_transform(np.array(target_full).ravel())
-    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
-
-    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
-    im2 = Imputer(strategy='mean')
-    p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
-
-    ## full dataset ##
-    X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
-                            ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
-    X_p = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
-                            ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
-    Y = cat_full_lb
-
-    ## Neural Network ##
-    nn_model = compile_nn()
-
-    ## NN weighting mult ##
-    mix = 0.1
-
-    if save_final_results:
-        ''' Write results to a csv file
-            NOTE: sorting is not done here
-        '''
-        logging.warn('Make predictions for final test set')
-        logging.warn('Running model with all training data')
-
-        nn_model.fit(X, Y, nb_epoch=25, batch_size=128)
-        xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
-                            objective='multi:softprob',seed=0, **GS_CV)
-        Y = cat_full
-        xgb.fit(X , Y)
-
-        ## Make predictions ##
-        f_pred_nn = model.predict_proba(X_p)
-        f_pred_xgb = xgb.predict_proba(X_p)
-
-        ## merge models ##
-        f_pred_nn *= mix
-        f_pred_xgb *= (1-mix)
-        f_pred = f_pred_nn + f_pred_xgb
-
-        ## Write to submission file ##
-        k = 5
-        results = np.sort(f_pred)[:,::-1][:,:k].ravel()
-        labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
-        ids = np.array(final_X_test['id'])
-        ids = np.array([ ids for i in range(k) ]).T.ravel()
-        results_df = pd.DataFrame({'id':ids})
-        results_df['country'] = labels
-        results_df.to_csv('Data/submission.csv',index=False)
 
 def logmodels(save_final_results=True,n_k=4):
     global train_full
@@ -1139,8 +1052,9 @@ def logmodels(save_final_results=True,n_k=4):
     global Y_test
     global final_X_test
     global GS_CV
+    global f_pred
 
-    logging.warn('Create iterative logistic regression latent-class model')
+    logging.warn('Create iterative clustered logistic regression model')
     ## Encode categories ##
     le = LabelEncoder()
     lb = LabelBinarizer()
@@ -1157,7 +1071,7 @@ def logmodels(save_final_results=True,n_k=4):
     X_p = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                             ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
     Y = cat_full_lb
-    categories = set(Y)
+    categories = set(cat_full)
 
     ## Initialize Clusters ##
     km = KMeans(n_clusters=n_k)
@@ -1172,7 +1086,6 @@ def logmodels(save_final_results=True,n_k=4):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        logging.warn('Running model with all training data')
         cluster_models = {}
         f_pred = np.zeros((X_p.shape[0],Y.shape[1]))
         for k in cluster_set:
@@ -1199,28 +1112,51 @@ def logmodels(save_final_results=True,n_k=4):
                     cluster_models[k] = []
                 cluster_models[k].append(lm)
 
-        ## Write to submission file ##
-        k = 5
-        results = np.sort(f_pred)[:,::-1][:,:k].ravel()
-        labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
-        ids = np.array(final_X_test['id'])
-        ids = np.array([ ids for i in range(k) ]).T.ravel()
-        results_df = pd.DataFrame({'id':ids})
-        results_df['country'] = labels
-        results_df.to_csv('Data/submission.csv',index=False)
+def write_submission():
+    global f_pred
+    ## Write to submission file ##
+    k = 5
+    results = np.sort(f_pred)[:,::-1][:,:k].ravel()
+    labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
+    ids = np.array(final_X_test['id'])
+    ids = np.array([ ids for i in range(k) ]).T.ravel()
+    results_df = pd.DataFrame({'id':ids})
+    results_df['country'] = labels
+    results_df.to_csv('Data/submission.csv',index=False)
 
 def run():
     global NUM_COLS
     global CAT_COLS
+    global f_pred
+
+    # Load data and declare arguments
     declare_args(); load_data()
+
+    # Attach user features
     user_features(update_columns=True, newages=True)
+
+    # Attach age bucket data
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=False, lm=False, update_columns=True, pca_n=250)
+
+    # Add sessions data
+    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=250)
+
+    # Isolate most valuable features
     # component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
-    # final_model(test=False, grid_cv=False, save_final_results=True)
-    # neural_model(test=False, save_final_results=True)
-    # combi_model(test=False,save_final_results=True)
-    logmodels(save_final_results=True,n_k=4)
+
+    # Run forest model
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 6}
+    forest_model(test=False, grid_cv=False, save_final_results=True)
+    f_pred_final = f_pred * 0.4
+
+    # Run neural model
+    neural_model(test=False, save_final_results=True)
+    f_pred_final += f_pred * 0.2
+
+    # Run clustered LR models
+    logmodels(save_final_results=True,n_k=6)
+    f_pred_final += f_pred * 0.4
+    write_submission()
 
 # if __name__=='__main__':
 #     run()
