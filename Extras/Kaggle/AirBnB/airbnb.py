@@ -24,13 +24,15 @@ from sklearn.pipeline import Pipeline
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
-from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, ElasticNetCV
+from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, \
+                                    ElasticNetCV, LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
 from sklearn.feature_selection import RFECV
 from sklearn import cross_validation
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.grid_search import GridSearchCV
 from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.cluster import KMeans
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -1128,17 +1130,97 @@ def combi_model(test=True,save_final_results=True):
         results_df['country'] = labels
         results_df.to_csv('Data/submission.csv',index=False)
 
+def logmodels(save_final_results=True,n_k=4):
+    global train_full
+    global target_full
+    global X_train
+    global X_test
+    global Y_train
+    global Y_test
+    global final_X_test
+    global GS_CV
+
+    logging.warn('Create iterative logistic regression latent-class model')
+    ## Encode categories ##
+    le = LabelEncoder()
+    lb = LabelBinarizer()
+    cat_full = le.fit_transform(np.array(target_full).ravel())
+    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
+
+    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
+    im2 = Imputer(strategy='mean')
+    p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
+
+    ## full dataset ##
+    X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
+                            ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
+    X_p = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
+                            ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
+    Y = cat_full_lb
+    categories = set(Y)
+
+    ## Initialize Clusters ##
+    km = KMeans(n_clusters=n_k)
+    clusters = km.fit_predict(X)
+    clusters_p = km.predict(X_p)
+    X = np.concatenate((np.matrix(clusters).T,X),axis=1)
+    X_p = np.concatenate((np.matrix(clusters_p).T,X_p),axis=1)
+    cluster_set = set(clusters.tolist())
+
+    if save_final_results:
+        ''' Write results to a csv file
+            NOTE: sorting is not done here
+        '''
+        logging.warn('Make predictions for final test set')
+        logging.warn('Running model with all training data')
+        cluster_models = {}
+        f_pred = np.zeros((X_p.shape[0],Y.shape[1]))
+        for k in cluster_set:
+            for c in categories:
+                # find cluster subset
+                k_locs = np.array(X[:,0]==k).ravel()
+                kp_locs = np.array(X_p[:,0]==k).ravel()
+
+                # subset data
+                X_k = X[k_locs,:]
+                Xp_k = X_p[kp_locs,:]
+                Y_k = Y[k_locs,c]
+
+                # initialize model for subset
+                lm = LogisticRegression()
+                lm.fit(X_k, Y_k)
+
+                # predict probability
+                f_pred_tmp = lm.predict_proba(Xp_k)
+
+                # fill subset predicted value
+                f_pred[kp_locs,c] = f_pred_tmp[:,1]
+                if k not in cluster_models:
+                    cluster_models[k] = []
+                cluster_models[k].append(lm)
+
+        ## Write to submission file ##
+        k = 5
+        results = np.sort(f_pred)[:,::-1][:,:k].ravel()
+        labels = le.inverse_transform(np.argsort(f_pred)[:,::-1][:,:k].ravel())
+        ids = np.array(final_X_test['id'])
+        ids = np.array([ ids for i in range(k) ]).T.ravel()
+        results_df = pd.DataFrame({'id':ids})
+        results_df['country'] = labels
+        results_df.to_csv('Data/submission.csv',index=False)
+
 def run():
     global NUM_COLS
     global CAT_COLS
     declare_args(); load_data()
     user_features(update_columns=True, newages=True)
     attach_age_buckets(update_columns=True)
-    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=250)
+    attach_sessions(collapse=False, pca=False, lm=False, update_columns=True, pca_n=250)
     # component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
-    final_model(test=False, grid_cv=False, save_final_results=True)
+    # final_model(test=False, grid_cv=False, save_final_results=True)
     # neural_model(test=False, save_final_results=True)
     # combi_model(test=False,save_final_results=True)
+    logmodels(save_final_results=True,n_k=4)
 
 # if __name__=='__main__':
 #     run()
