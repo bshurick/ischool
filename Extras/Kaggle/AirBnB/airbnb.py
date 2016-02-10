@@ -1158,5 +1158,5 @@ def run():
     f_pred_final += f_pred * 0.4
     write_submission()
 
-# if __name__=='__main__':
-#     run()
+if __name__=='__main__':
+    run()
