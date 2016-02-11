@@ -526,6 +526,7 @@ def component_isolation(method='gradient',update_columns=False,add_pca=False,add
             importance.index = importance['feature']
             del importance['feature']
             m = np.min(importance['fscore'])
+            logging.warn('Feature scores: {}'.format(importance))
             importance['threshold'] = importance['fscore'] > m
             keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
             return keep
@@ -871,7 +872,7 @@ def attach_sessions(collapse=True,pca=True, lm=True, update_columns=True, pca_n=
 def compile_nn(input_dim, output_dim):
     nn_model = Sequential()
     nn_model.add(Dense(output_dim=24, input_dim=input_dim, \
-        init="glorot_uniform", W_regularizer=l2(0.01)))
+        init="glorot_uniform", W_regularizer=l2(0.1)))
     nn_model.add(Activation("softmax"))
     nn_model.add(Dense(output_dim=output_dim, input_dim=24))
     nn_model.add(Activation("softmax"))
@@ -892,6 +893,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
     global final_X_test
     global GS_CV
     global f_pred
+    global accuracies
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
@@ -936,7 +938,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
+        xgb = XGBClassifier(learning_rate=0.1, n_estimators=250,
                             objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X_train , Y_train)
         if test:
@@ -944,13 +946,19 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             p_pred = xgb.predict(X_test)
             p_pred_i = le.inverse_transform(p_pred)
             p_pred_p = xgb.predict_proba(X_test)
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+            cat_tst_lb = lb.fit_transform(Y_test)
+            logging.warn('Accuracy: '+str(np.mean(p_pred == Y_test)))
+            logging.warn('\n'+classification_report(p_pred, Y_test))
+            logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
             logging.warn('Label Ranking Precision score: {}'\
                             .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
             logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+            categories = set(Y_test)
+            accuracies = np.zeros(len(categories))
+            for c in categories:
+                accuracies[c] = np.sum(p_pred[p_pred==c]==Y_test[p_pred==c])*1.0
+                accuracies[c] /= p_pred[p_pred==c].shape[0]
 
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
@@ -964,8 +972,8 @@ def neural_model(test=True,save_final_results=True):
     global Y_train
     global Y_test
     global final_X_test
-    global GS_CV
     global f_pred
+    global accuracies
 
     logging.warn('Create neural model with training data')
     ## Encode categories ##
@@ -1003,14 +1011,24 @@ def neural_model(test=True,save_final_results=True):
             logging.warn('Test prediction accuracy')
             p_pred = model.predict(X_test)
             p_pred_i = lb.inverse_transform(p_pred)
-            p_pred_p = model.predict_proba(X_test)
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+
+            cat_tst_lb = Y_test
+            Y_test = lb.inverse_transform(Y_test)
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == Y_test)))
+            logging.warn('\n'+classification_report(p_pred_i, Y_test))
+            logging.warn('Log Loss: {}'.format(log_loss(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking Precision score: {}'\
                             .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
             logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+
+            cat_tst_le = le.transform(Y_test)
+            p_pred_le = le.transform(p_pred_i)
+            categories = set(cat_tst_le)
+            accuracies = np.zeros(len(categories))
+            for c in categories:
+                accuracies[c] = np.sum(p_pred_le[p_pred_le==c]==cat_tst_le[p_pred_le==c])*1.0
+                accuracies[c] /= p_pred_le[p_pred_le==c].shape[0]
 
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
@@ -1026,6 +1044,7 @@ def logmodels(test=True,save_final_results=True,n_k=4):
     global final_X_test
     global GS_CV
     global f_pred
+    global accuracies
 
     logging.warn('Create iterative clustered logistic regression model')
     ## Encode categories ##
@@ -1049,7 +1068,7 @@ def logmodels(test=True,save_final_results=True,n_k=4):
     ## Initialize Clusters ##
     km = KMeans(n_clusters=n_k)
     clusters = km.fit_predict(X)
-    clusters_p = km.predict(X_p)
+    clusters_p = km.predict(X_final)
     X = np.concatenate((np.matrix(clusters).T,X),axis=1)
     X_final = np.concatenate((np.matrix(clusters_p).T,X_final),axis=1)
     cluster_set = set(clusters.tolist())
@@ -1067,7 +1086,7 @@ def logmodels(test=True,save_final_results=True,n_k=4):
         '''
         logging.warn('Make predictions for final test set')
         cluster_models = {}
-        f_pred = np.zeros((X_p.shape[0],Y_train.shape[1]))
+        f_pred = np.zeros((X_final.shape[0],Y_train.shape[1]))
         p_pred = np.zeros((X_test.shape[0],Y_test.shape[1]))
         for k in cluster_set:
             for c in categories:
@@ -1099,16 +1118,24 @@ def logmodels(test=True,save_final_results=True,n_k=4):
 
         if test:
             logging.warn('Test prediction accuracy')
-            p_pred_i = np.argmax(p_pred)
-            p_pred_i = le.inverse_transform(p_pred_i)
+            p_pred_i = np.argmax(p_pred,axis=1)
+            cat_tst_lb = Y_test
+            Y_test = le.transform(lb.inverse_transform(Y_test))
+            p_pred_lb = lb.transform(p_pred_i)
             p_pred_p = p_pred
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == Y_test)))
+            logging.warn('\n'+classification_report(p_pred_i, Y_test))
+            logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
             logging.warn('Label Ranking Precision score: {}'\
                             .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
             logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+
+            categories = set(Y_test)
+            accuracies = np.zeros(len(categories))
+            for c in categories:
+                accuracies[c] = np.sum(p_pred_i[p_pred_i==c]==Y_test[p_pred_i==c])*1.0
+                accuracies[c] /= p_pred_i[p_pred_i==c].shape[0]
 
 def write_submission():
     global f_pred
@@ -1126,6 +1153,7 @@ def run():
     global NUM_COLS
     global CAT_COLS
     global f_pred
+    global accuracies
     global GS_CV
 
     # Load data and declare arguments
@@ -1141,24 +1169,34 @@ def run():
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=250)
 
     # Isolate most valuable features
-    # component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
+    component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
 
     # Run forest model
     GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 6}
     forest_model(test=True, grid_cv=False, save_final_results=True)
     f_pred_for = f_pred
+    accuracies_for = accuracies
 
     # Run neural model
     neural_model(test=True, save_final_results=True)
     f_pred_nn = f_pred
+    accuracies_nn = accuracies
 
     # Run clustered LR models
-    logmodels(test=True, save_final_results=True,n_k=6)
+    logmodels(test=True, save_final_results=True, n_k=3)
     f_pred_log = f_pred
+    accuracies_log = accuracies
 
     # Combine models
-    f_pred = f_pred_for*0.4 + f_pred_nn*0.2 + f_pred_log*0.4
+    accuracies_for[np.isnan(accuracies_for)] = 0
+    accuracies_log[np.isnan(accuracies_log)] = 0
+    w_for = accuracies_for/(accuracies_for+accuracies_log)
+    w_for[np.isnan(w_for)] = 0
+    w_log = 1-w_for
+    f_pred = f_pred_log*w_log + f_pred_for*w_for
+
+    # Write submission file
     write_submission()
 
-if __name__=='__main__':
-    run()
+# if __name__=='__main__':
+#     run()
