@@ -197,7 +197,7 @@ def declare_args():
     TRAIN_DATA_FILE = 'Data/train_users_2.csv'
 
     ## Model args ##
-    TEST_SIZE = 0.4
+    TEST_SIZE = 0.2
 
     ## Fields ##
     USER_COLUMNS = [
@@ -254,8 +254,7 @@ def declare_args():
     ]
 
     # XGA boost params
-    # GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 8}
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.75, 'max_depth': 12}
+    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 8}
 
 # ### Read data
 def load_data():
@@ -910,40 +909,12 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
     Y = cat_full
 
-    if test:
-        ## Set up X,Y data for modeling ##
-        X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
-                                                          train_full[CAT_COLS+NUM_COLS] \
-                                                          , target_full \
-                                                          , test_size=TEST_SIZE \
-                                                          , random_state=0)
-        cat_le = le.transform(np.array(Y_train).ravel())
-        cat_tst_le = le.transform(np.array(Y_test).ravel())
-        cat_lb = lb.transform(np.array(Y_train).ravel())
-        cat_tst_lb = lb.transform(np.array(Y_test).ravel())
-        X_train = np.concatenate((p.transform(X_train[CAT_COLS]).todense() \
-                                ,im2.transform(np.array(X_train[NUM_COLS]))),axis=1)
-        X_test = np.concatenate((p.transform(X_test[CAT_COLS]).todense() \
-                                ,im2.transform(np.array(X_test[NUM_COLS]))),axis=1)
-
-        ## Run model with only training data ##
-        logging.warn('Running model with training data')
-        xgb = XGBClassifier(learning_rate=0.01, n_estimators=50,
-                            objective='multi:softprob',seed=0, **GS_CV)
-        xgb.fit(X_train , cat_le)
-
-        ## Run model with only training data ##
-        logging.warn('Test prediction accuracy')
-        p_pred = xgb.predict(X_test)
-        p_pred_i = le.inverse_transform(p_pred)
-        p_pred_p = xgb.predict_proba(X_test)
-        logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-        logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-        logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
-        logging.warn('Label Ranking Precision score: {}'\
-                        .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-        logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-        logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+    ## Set up X,Y data for modeling ##
+    X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
+                                                      X \
+                                                      , Y \
+                                                      , test_size=TEST_SIZE \
+                                                      , random_state=0)
 
     if grid_cv:
         ## Run grid search to find optimal parameters ##
@@ -967,7 +938,20 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
         logging.warn('Make predictions for final test set')
         xgb = XGBClassifier(learning_rate=0.01, n_estimators=500,
                             objective='multi:softprob',seed=0, **GS_CV)
-        xgb.fit(X , Y)
+        xgb.fit(X_train , Y_train)
+        if test:
+            logging.warn('Test prediction accuracy')
+            p_pred = xgb.predict(X_test)
+            p_pred_i = le.inverse_transform(p_pred)
+            p_pred_p = xgb.predict_proba(X_test)
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
+            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
+            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+            logging.warn('Label Ranking Precision score: {}'\
+                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = xgb.predict_proba(X)
@@ -998,52 +982,41 @@ def neural_model(test=True,save_final_results=True):
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
     Y = cat_full_lb
 
+    ## Set up X,Y data for modeling ##
+    X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
+                                                      X \
+                                                      , Y \
+                                                      , test_size=TEST_SIZE \
+                                                      , random_state=0)
+
     ## Neural Network ##
     model = compile_nn(X.shape[1],Y.shape[1])
-
-    if test:
-        ## Set up X,Y data for modeling ##
-        X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
-                                                          train_full[CAT_COLS+NUM_COLS] \
-                                                          , target_full \
-                                                          , test_size=TEST_SIZE \
-                                                          , random_state=0)
-        cat_lb = lb.transform(np.array(Y_train).ravel())
-        cat_tst_lb = lb.transform(np.array(Y_test).ravel())
-        X_train = np.concatenate((p.transform(X_train[CAT_COLS]).todense() \
-                                ,im2.transform(np.array(X_train[NUM_COLS]))),axis=1)
-        X_test = np.concatenate((p.transform(X_test[CAT_COLS]).todense() \
-                                ,im2.transform(np.array(X_test[NUM_COLS]))),axis=1)
-
-        ## Run model with only training data ##
-        logging.warn('Running model with training data')
-        model.fit(X_train, cat_lb, batch_size=128, nb_epoch=10,
-            validation_data=(X_test, cat_tst_lb))
-
-        ## Run model with only training data ##
-        logging.warn('Test prediction accuracy')
-        p_pred = model.predict(X_test)
-        p_pred_i = lb.inverse_transform(p_pred)
-        p_pred_p = model.predict_proba(X_test)
-        logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
-        logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
-        logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
-        logging.warn('Label Ranking Precision score: {}'\
-                        .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-        logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-        logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
     if save_final_results:
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        model.fit(X, Y, nb_epoch=25, batch_size=128)
+        model.fit(X_train, Y_train, nb_epoch=25, batch_size=128)
+
+        if test:
+            logging.warn('Test prediction accuracy')
+            p_pred = model.predict(X_test)
+            p_pred_i = lb.inverse_transform(p_pred)
+            p_pred_p = model.predict_proba(X_test)
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
+            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
+            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+            logging.warn('Label Ranking Precision score: {}'\
+                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
+
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = model.predict_proba(X)
 
-def logmodels(save_final_results=True,n_k=4):
+def logmodels(test=True,save_final_results=True,n_k=4):
     global train_full
     global target_full
     global X_train
@@ -1068,7 +1041,7 @@ def logmodels(save_final_results=True,n_k=4):
     ## full dataset ##
     X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
                             ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
-    X_p = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
+    X_final = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                             ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
     Y = cat_full_lb
     categories = set(cat_full)
@@ -1078,8 +1051,15 @@ def logmodels(save_final_results=True,n_k=4):
     clusters = km.fit_predict(X)
     clusters_p = km.predict(X_p)
     X = np.concatenate((np.matrix(clusters).T,X),axis=1)
-    X_p = np.concatenate((np.matrix(clusters_p).T,X_p),axis=1)
+    X_final = np.concatenate((np.matrix(clusters_p).T,X_final),axis=1)
     cluster_set = set(clusters.tolist())
+
+    ## Set up X,Y data for modeling ##
+    X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
+                                                      X \
+                                                      , Y \
+                                                      , test_size=TEST_SIZE \
+                                                      , random_state=0)
 
     if save_final_results:
         ''' Write results to a csv file
@@ -1087,30 +1067,48 @@ def logmodels(save_final_results=True,n_k=4):
         '''
         logging.warn('Make predictions for final test set')
         cluster_models = {}
-        f_pred = np.zeros((X_p.shape[0],Y.shape[1]))
+        f_pred = np.zeros((X_p.shape[0],Y_train.shape[1]))
+        p_pred = np.zeros((X_test.shape[0],Y_test.shape[1]))
         for k in cluster_set:
             for c in categories:
                 # find cluster subset
-                k_locs = np.array(X[:,0]==k).ravel()
-                kp_locs = np.array(X_p[:,0]==k).ravel()
+                k_locs = np.array(X_train[:,0]==k).ravel()
+                k_test_locs = np.array(X_test[:,0]==k).ravel()
+                kp_locs = np.array(X_final[:,0]==k).ravel()
 
                 # subset data
-                X_k = X[k_locs,:]
-                Xp_k = X_p[kp_locs,:]
-                Y_k = Y[k_locs,c]
+                X_k = X_train[k_locs,:]
+                X_k_final = X_final[kp_locs,:]
+                Y_k = Y_train[k_locs,c]
+                X_k_test = X_test[k_test_locs,:]
 
                 # initialize model for subset
                 lm = LogisticRegression()
                 lm.fit(X_k, Y_k)
 
                 # predict probability
-                f_pred_tmp = lm.predict_proba(Xp_k)
+                f_pred_tmp = lm.predict_proba(X_k_final)
+                f_pred_test_tmp = lm.predict_proba(X_k_test)
 
                 # fill subset predicted value
                 f_pred[kp_locs,c] = f_pred_tmp[:,1]
+                p_pred[k_test_locs,c] = f_pred_test_tmp[:,1]
                 if k not in cluster_models:
                     cluster_models[k] = []
                 cluster_models[k].append(lm)
+
+        if test:
+            logging.warn('Test prediction accuracy')
+            p_pred_i = np.argmax(p_pred)
+            p_pred_i = le.inverse_transform(p_pred_i)
+            p_pred_p = p_pred
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == np.array(Y_test).ravel())))
+            logging.warn('\n'+classification_report(p_pred_i,np.array(Y_test).ravel()))
+            logging.warn('Log Loss: {}'.format(log_loss(np.array(Y_test).ravel(), p_pred_p)))
+            logging.warn('Label Ranking Precision score: {}'\
+                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
+            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
 def write_submission():
     global f_pred
@@ -1128,6 +1126,7 @@ def run():
     global NUM_COLS
     global CAT_COLS
     global f_pred
+    global GS_CV
 
     # Load data and declare arguments
     declare_args(); load_data()
@@ -1146,16 +1145,19 @@ def run():
 
     # Run forest model
     GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 6}
-    forest_model(test=False, grid_cv=False, save_final_results=True)
-    f_pred_final = f_pred * 0.4
+    forest_model(test=True, grid_cv=False, save_final_results=True)
+    f_pred_for = f_pred
 
     # Run neural model
-    neural_model(test=False, save_final_results=True)
-    f_pred_final += f_pred * 0.2
+    neural_model(test=True, save_final_results=True)
+    f_pred_nn = f_pred
 
     # Run clustered LR models
-    logmodels(save_final_results=True,n_k=6)
-    f_pred_final += f_pred * 0.4
+    logmodels(test=True, save_final_results=True,n_k=6)
+    f_pred_log = f_pred
+
+    # Combine models
+    f_pred = f_pred_for*0.4 + f_pred_nn*0.2 + f_pred_log*0.4
     write_submission()
 
 if __name__=='__main__':
