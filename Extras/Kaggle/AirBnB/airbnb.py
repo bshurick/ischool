@@ -328,6 +328,7 @@ def user_features(update_columns=True, newages=False):
                         pd.to_datetime(train_full['timestamp_first_active'],format='%Y%m%d%H%M%S')
     train_full['first_active_hour'] = train_full['first_active_datetime'].dt.hour
     train_full['first_active_part_of_day'] = train_full['first_active_hour'] // 4
+    train_full['age_group'] = train_full['age'] // 10
 
     ## repeat with final test ##
     final_X_test['date_account_created'] = pd.to_datetime(final_X_test['date_account_created'])
@@ -346,6 +347,7 @@ def user_features(update_columns=True, newages=False):
                         pd.to_datetime(final_X_test['timestamp_first_active'],format='%Y%m%d%H%M%S')
     final_X_test['first_active_hour'] = final_X_test['first_active_datetime'].dt.hour
     final_X_test['first_active_part_of_day'] = final_X_test['first_active_hour'] // 4
+    final_X_test['age_group'] = final_X_test['age'] // 10
 
     ## Add new columns to model cols ##
     if update_columns:
@@ -359,6 +361,7 @@ def user_features(update_columns=True, newages=False):
             'created_day_of_year',
             'first_active_hour',
             'first_active_part_of_day',
+            'age_group',
         ]
         NUM_COLS += [
             'created_days_ago',
@@ -525,7 +528,7 @@ def component_isolation(method='gradient',update_columns=False,add_pca=False,add
             importance['fscore'] = importance['fscore'].astype('int') / importance['fscore'].astype('int').sum()
             importance.index = importance['feature']
             del importance['feature']
-            m = np.min(importance['fscore'])
+            m = np.median(importance['fscore'])
             logging.warn('Feature scores: {}'.format(importance))
             importance['threshold'] = importance['fscore'] > m
             keep = [ int(i[1:]) for i in importance.loc[importance['threshold'],].index ]
@@ -938,7 +941,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        xgb = XGBClassifier(learning_rate=0.1, n_estimators=250,
+        xgb = XGBClassifier(learning_rate=0.1, n_estimators=500,
                             objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X_train , Y_train)
         if test:
@@ -1169,18 +1172,18 @@ def run():
     attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=250)
 
     # Isolate most valuable features
-    component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
+    component_isolation(method='gradient', update_columns=False, add_pca=True, add_lda=True)
 
     # Run forest model
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 6}
+    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 8}
     forest_model(test=True, grid_cv=False, save_final_results=True)
     f_pred_for = f_pred
     accuracies_for = accuracies
 
     # Run neural model
-    neural_model(test=True, save_final_results=True)
-    f_pred_nn = f_pred
-    accuracies_nn = accuracies
+    # neural_model(test=True, save_final_results=True)
+    # f_pred_nn = f_pred
+    # accuracies_nn = accuracies
 
     # Run clustered LR models
     logmodels(test=True, save_final_results=True, n_k=3)
