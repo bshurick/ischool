@@ -527,8 +527,8 @@ def write_submission():
     roundpreds = np.vectorize(lambda x: int(round(x,0)))
     preds = roundpreds(np.argmax(f_pred,axis=1)+1)
     ids = final_test['id'].ravel()
-    output_df = pd.DataFrame({'relevance':preds},index=ids)
-    results_df.to_csv('Data/submission.csv',index=True)
+    results_df = pd.DataFrame({'id':ids,'relevance':preds})
+    results_df.to_csv('Data/submission.csv',index=False)
 
 def run():
     global train_full
