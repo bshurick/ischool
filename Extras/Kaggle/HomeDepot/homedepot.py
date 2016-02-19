@@ -34,6 +34,7 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -137,7 +138,7 @@ def declare_args():
     ## Fields ##
     ATTRIBUTES_COLUMNS = [u'name', u'value']
     PRODUCT_DESCRIPTIONS_COLUMNS = [u'product_description']
-    TRAIN_COLUMNS = [u'product_title', u'search_term']
+    TRAIN_COLUMNS = []
     TARGET_COLUMN = [u'relevance']
 
     # XGA boost params
@@ -173,6 +174,7 @@ def load_data():
 
 def load_attributes():
     global attributes
+    global TRAIN_COLUMNS
     logging.warn('Compiling attribute dimensions per product')
 
     ## create matrix of attributes by product
@@ -181,7 +183,7 @@ def load_attributes():
     attributes['words'] = findwords(attributes['value'])
 
     ## vectorize words in attributes
-    cv = CountVectorizer(stop_words='english')
+    cv = CountVectorizer(stop_words='english', max_features=1000, max_df=0.25)
     attribute_vec = cv.fit_transform(attributes['words'])
 
     ## Function to minimize session data at the user level ##
@@ -195,20 +197,98 @@ def load_attributes():
     n = attribute_vec.shape[1]//50 # 50 chunks of word count data
     z = ( minimize_df(y,attribute_vec.shape[1],50,attribute_vec) for y in range(n+1) )
     attributes_new = pd.concat(z,axis=1)
+    ## add Tf-Idf transformer here!
     attributes_new.columns = [ 'attribute_'+str(i) for i in range(len(attributes_new.columns)) ]
-    attributes_new.index = attributes['product_uid']
+    TRAIN_COLUMNS += list(attributes_new.columns)
     attributes = attributes_new
+    del attributes_new
 
-def compile_nn(input_dim, output_dim):
-    nn_model = Sequential()
-    nn_model.add(Dense(output_dim=24, input_dim=input_dim, \
-        init="glorot_uniform", W_regularizer=l2(0.1)))
-    nn_model.add(Activation("softmax"))
-    nn_model.add(Dense(output_dim=output_dim, input_dim=24))
-    nn_model.add(Activation("softmax"))
-    nn_model.add(Activation("relu"))
-    nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
-    return nn_model
+def load_descriptions():
+    global descriptions
+    global TRAIN_COLUMNS
+    logging.warn('Compiling descriptions into features for each product')
+
+    ## filter out non-words
+    WORDS = re.compile(r'[a-zA-Z]+')
+    findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x))))
+    descriptions['words'] = findwords(descriptions['product_description'])
+
+    ## vectorize words in attributes
+    ## add Tf-Idf vectorizer here!
+    cv = CountVectorizer(stop_words='english',max_features=1000, max_df=0.25)
+    descriptions_vec = cv.fit_transform(descriptions['words'])
+    descriptions_new = pd.DataFrame(descriptions_vec.todense(),index=descriptions['product_uid'])
+    descriptions_new.columns = [ 'description_'+str(i) for i in range(len(descriptions_new.columns)) ]
+    TRAIN_COLUMNS += list(descriptions_new.columns)
+    descriptions = descriptions_new
+    del descriptions_new
+
+def manipulate_train_data():
+    global train_full
+    global final_test
+    global TRAIN_COLUMNS
+    logging.warn('Compiling descriptions into features for each product')
+
+    ## filter out non-words in title
+    WORDS = re.compile(r'[a-zA-Z]+')
+    findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x))))
+    train_full['product_title'] = findwords(train_full['product_title'])
+    final_test['product_title'] = findwords(final_test['product_title'])
+
+    ## vectorize words in attributes
+    ## add Tf-Idf transformer here!
+    cv = CountVectorizer(stop_words='english',max_features=1000, max_df=0.25)
+    train_full_vec = cv.fit_transform(train_full['product_title'])
+    final_test_vec = cv.transform(final_test['product_title'])
+
+    ## combine data with product index
+    train_full_new = pd.DataFrame(train_full_vec.todense(),index=train_full['id'])
+    train_full_new.columns = [ 'title_'+str(i) for i in range(len(train_full_new.columns)) ]
+    final_test_new = pd.DataFrame(final_test_vec.todense(),index=final_test['id'])
+    final_test_new.columns = [ 'title_'+str(i) for i in range(len(final_test_new.columns)) ]
+    TRAIN_COLUMNS += list(train_full_new.columns)
+
+    ## vectorize search terms
+    cv2 = CountVectorizer(stop_words='english',max_features=1000, max_df=0.25)
+    train_full_stvec = cv2.fit_transform(train_full['search_term'])
+    final_test_stvec = cv2.transform(final_test['search_term'])
+
+    ## combine search term data
+    train_full_stnew = pd.DataFrame(train_full_stvec.todense(),index=train_full['id'])
+    train_full_stnew.columns = [ 'search_'+str(i) for i in range(len(train_full_stnew.columns)) ]
+    final_test_stnew = pd.DataFrame(final_test_stvec.todense(),index=final_test['id'])
+    final_test_stnew.columns = [ 'search_'+str(i) for i in range(len(final_test_stnew.columns)) ]
+    train_full_new = pd.concat((train_full, train_full_new, train_full_stnew),axis=1)
+    final_test_new = pd.concat((final_test, final_test_new, final_test_stnew),axis=1)
+    TRAIN_COLUMNS += list(train_full_stnew.columns)
+    train_full = train_full_new
+    final_test = final_test_new
+    del train_full_new
+    del final_test_new
+
+def combine_data():
+    global descriptions
+    global attributes
+    global train_full
+    global target_full
+    global final_test
+    logging.warn('Combining datasets')
+
+    ## attach product data to training set
+    train_full.index = train_full['product_uid']
+    final_test.index = final_test['product_uid']
+
+    ## merge attribute data
+    train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
+    final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
+
+    ## merge description data
+    train_full = pd.merge(train_full, descriptions, how='left', left_index=True, right_index=True)
+    final_test = pd.merge(final_test, descriptions, how='left', left_index=True, right_index=True)
+
+    ## reset indices
+    train_full.index = train_full['id']
+    final_test.index = final_test['id']
 
 # ### Run forest model ##
 def forest_model(test=True,grid_cv=False,save_final_results=True):
@@ -216,32 +296,16 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
     '''
     global train_full
     global target_full
-    global X_train
-    global X_test
-    global Y_train
-    global Y_test
-    global final_X_test
+    global TRAIN_COLUMNS
     global GS_CV
     global f_pred
     global accuracies
+    categorize = np.vectorize(lambda x: int(round(x,0)))
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
-    le = LabelEncoder()
-    lb = LabelBinarizer()
-    cat_full = le.fit_transform(np.array(target_full).ravel())
-    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
-
-    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
-    im2 = Imputer(strategy='mean')
-    p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
-
-    ## full dataset ##
-    X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
-                            ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
-    Y = cat_full
-
-    ## Set up X,Y data for modeling ##
+    X = np.matrix(train_full[TRAIN_COLUMNS].fillna(0))
+    Y = categorize(np.array(target_full[TARGET_COLUMN]).ravel())
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
@@ -273,7 +337,6 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
         if test:
             logging.warn('Test prediction accuracy')
             p_pred = xgb.predict(X_test)
-            p_pred_i = le.inverse_transform(p_pred)
             p_pred_p = xgb.predict_proba(X_test)
             cat_tst_lb = lb.fit_transform(Y_test)
             logging.warn('Accuracy: '+str(np.mean(p_pred == Y_test)))
@@ -282,44 +345,38 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             logging.warn('Label Ranking Precision score: {}'\
                             .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
             categories = set(Y_test)
             accuracies = np.zeros(len(categories))
             for c in categories:
                 accuracies[c] = np.sum(p_pred[p_pred==c]==Y_test[p_pred==c])*1.0
                 accuracies[c] /= p_pred[p_pred==c].shape[0]
 
-        X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
-                                ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
+        X = np.matrix(final_test[TRAIN_COLUMNS].fillna(0))
         f_pred = xgb.predict_proba(X)
+
+def compile_nn(input_dim, output_dim):
+    nn_model = Sequential()
+    nn_model.add(Dense(output_dim=300, input_dim=input_dim, \
+        init="glorot_uniform", W_regularizer=l2(0.1)))
+    nn_model.add(Activation("softmax"))
+    nn_model.add(Dense(output_dim=output_dim, input_dim=300))
+    nn_model.add(Activation("softmax"))
+    nn_model.add(Activation("relu"))
+    nn_model.compile(loss='mean_squared_error', optimizer='sgd')
+    return nn_model
 
 def neural_model(test=True,save_final_results=True):
     global train_full
     global target_full
-    global X_train
-    global X_test
-    global Y_train
-    global Y_test
-    global final_X_test
-    global f_pred
-    global accuracies
+    global TRAIN_COLUMNS
+    categorize = np.vectorize(lambda x: int(round(x,0)))
 
     logging.warn('Create neural model with training data')
-    ## Encode categories ##
-    le = LabelEncoder()
-    lb = LabelBinarizer()
-    cat_full = le.fit_transform(np.array(target_full).ravel())
-    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
-
-    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
-    im2 = Imputer(strategy='mean')
-    p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
-    ## full dataset ##
-    X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
-                            ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
-    Y = cat_full_lb
 
     ## Set up X,Y data for modeling ##
+    lb = LabelBinarizer()
+    X = np.matrix(train_full[TRAIN_COLUMNS].fillna(0))
+    Y = lb.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
@@ -334,22 +391,19 @@ def neural_model(test=True,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        model.fit(X_train, Y_train, nb_epoch=25, batch_size=128)
+        model.fit(X_train, Y_train, nb_epoch=10, batch_size=128)
 
         if test:
             logging.warn('Test prediction accuracy')
             p_pred = model.predict(X_test)
             p_pred_i = lb.inverse_transform(p_pred)
 
-            cat_tst_lb = Y_test
-            Y_test = lb.inverse_transform(Y_test)
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == Y_test)))
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == lb.inverse_transform(Y_test))))
             logging.warn('\n'+classification_report(p_pred_i, Y_test))
             logging.warn('Log Loss: {}'.format(log_loss(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking Precision score: {}'\
                             .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
             logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
             cat_tst_le = le.transform(Y_test)
             p_pred_le = le.transform(p_pred_i)
@@ -468,11 +522,18 @@ def logmodels(test=True,save_final_results=True,n_k=4):
 
 def write_submission():
     global f_pred
+    global final_test
     ## Write to submission file ##
+    roundpreds = np.vectorize(lambda x: int(round(x,0)))
+    preds = roundpreds(np.argmax(f_pred,axis=1)+1)
+    ids = final_test['id'].ravel()
+    output_df = pd.DataFrame({'relevance':preds},index=ids)
+    results_df.to_csv('Data/submission.csv',index=True)
 
 def run():
-    global NUM_COLS
-    global CAT_COLS
+    global train_full
+    global target_full
+    global final_test
     global f_pred
     global accuracies
     global GS_CV
@@ -480,17 +541,17 @@ def run():
     # Load data and declare arguments
     declare_args(); load_data()
 
-    # Attach user features
-    user_features(update_columns=True, newages=True)
+    # load description data
+    load_descriptions()
 
-    # Attach age bucket data
-    attach_age_buckets(update_columns=True)
+    # load attribute data
+    load_attributes()
 
-    # Add sessions data
-    attach_sessions(collapse=False, pca=True, lm=True, update_columns=True, pca_n=250)
+    # manipulate_train_data
+    manipulate_train_data()
 
-    # Isolate most valuable features
-    component_isolation(method='gradient', update_columns=False, add_pca=False, add_lda=False)
+    # combine datasets to final
+    combine_data()
 
     # Run forest model
     GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 6}
