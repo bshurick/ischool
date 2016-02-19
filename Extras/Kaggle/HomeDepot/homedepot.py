@@ -199,17 +199,6 @@ def load_attributes():
     attributes_new.index = attributes['product_uid']
     attributes = attributes_new
 
-def compile_nn(input_dim, output_dim):
-    nn_model = Sequential()
-    nn_model.add(Dense(output_dim=24, input_dim=input_dim, \
-        init="glorot_uniform", W_regularizer=l2(0.1)))
-    nn_model.add(Activation("softmax"))
-    nn_model.add(Dense(output_dim=output_dim, input_dim=24))
-    nn_model.add(Activation("softmax"))
-    nn_model.add(Activation("relu"))
-    nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
-    return nn_model
-
 # ### Run forest model ##
 def forest_model(test=True,grid_cv=False,save_final_results=True):
     ''' execute final model
@@ -292,6 +281,31 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
         X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
                                 ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
         f_pred = xgb.predict_proba(X)
+
+def compile_nn(input_dim, output_dim):
+    ## Layer 1
+    nn_model = Sequential()
+    nn_model.add(Dense(output_dim=1024, input_dim=(input_dim,), W_regularizer=l2(0.1)))
+    nn_model.add(PReLU())
+    nn_model.add(BatchNormalization())
+    nn_model.add(Dropout(0.5))
+
+    ## Layer 2
+    nn_model.add(Dense(1024))
+    nn_model.add(PReLU())
+    nn_model.add(BatchNormalization())
+    nn_model.add(Dropout(0.5))
+
+    ## Layer 3
+    nn_model.add(Dense(1024))
+    nn_model.add(PReLU())
+    nn_model.add(BatchNormalization())
+    nn_model.add(Dropout(0.5))
+
+    nn_model.add(Dense(output_dim=output_dim))
+    nn_model.add(Activation("softmax"))
+    nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
+    return nn_model
 
 def neural_model(test=True,save_final_results=True):
     global train_full
