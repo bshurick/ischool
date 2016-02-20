@@ -240,25 +240,39 @@ def combine_data():
             if i<N2:
                 distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
 
+    ## create new train data with distance measurements
+    train_full_distances = pd.DataFrame(distances_train)
+    final_test_distances = pd.DataFrame(distances_test)
+    train_full_distances.index = train_full.index
+    final_test_distances.index = final_test.index
+    train_full_distances.to_csv('Data/train_distances.csv', index=True)
+    final_test_distances.to_csv('Data/test_distances.csv', index=True)
+
     ## calculate further features
     K = 6
     P = 50
 
+    ## KMeans clustering
     km = KMeans(K)
     train_search_term_km = km.fit_predict(train_full_stvec)
-    train_search_term_km = pd.DataFrame({'km':train_search_term_km},index=train_full['id'])
+    train_search_term_km = pd.DataFrame({'km':train_search_term_km})
+    train_search_term_km.index = train_full.index
     final_test_km = km.predict(final_test_stvec)
-    final_test_km = pd.DataFrame({'km':final_test_km},index=final_test['id'])
+    final_test_km = pd.DataFrame({'km':final_test_km})
+    final_test_km.index = final_test.index
 
+    ## Decompose features into smaller subset
     svd = TruncatedSVD(P)
     train_search_term_svd = svd.fit_transform(train_full_stvec)
-    train_search_term_svd = pd.DataFrame(train_search_term_svd,index=train_full['id'],columns=['svd_'+str(i) for i in range(P)])
+    train_search_term_svd = pd.DataFrame(train_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
+    train_search_term_svd.index = train_full.index
     final_search_term_svd = svd.transform(final_test_stvec)
-    final_search_term_svd = pd.DataFrame(final_search_term_svd,index=final_test['id'],columns=['svd_'+str(i) for i in range(P)])
+    final_search_term_svd = pd.DataFrame(final_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
+    final_search_term_svd.index = final_test.index
 
-    ## replace train data with distances data frame
-    train_full = pd.DataFrame(distances_train,index=train_full['id'])
-    final_test = pd.DataFrame(distances_test,index=final_test['id'])
+    # combined all datasets
+    train_full = pd.concat((train_full_distances, train_search_term_km, train_search_term_svd ), axis=1)
+    final_test = pd.concat((final_test_distances, final_test_km, final_search_term_svd ), axis=1)
 
 # ### Run forest model ##
 def forest_model(test=True,grid_cv=False,save_final_results=True):
