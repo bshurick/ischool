@@ -288,7 +288,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
-    X = np.matrix(train_full[TRAIN_COLUMNS].fillna(0))
+    X = np.matrix(train_full.fillna(0))
     Y = categorize(np.array(target_full[TARGET_COLUMN]).ravel())
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
@@ -315,7 +315,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        xgb = XGBClassifier(learning_rate=0.1, n_estimators=250,
+        xgb = XGBClassifier(learning_rate=0.1, n_estimators=1000,
                             objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X_train , Y_train)
         if test:
@@ -326,39 +326,36 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             logging.warn('Accuracy: '+str(np.mean(p_pred == Y_test)))
             logging.warn('\n'+classification_report(p_pred, Y_test))
             logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
-            logging.warn('Label Ranking Precision score: {}'\
-                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-            categories = set(Y_test)
+            categories = set(Y_test-1)
             accuracies = np.zeros(len(categories))
             for c in categories:
-                accuracies[c] = np.sum(p_pred[p_pred==c]==Y_test[p_pred==c])*1.0
-                accuracies[c] /= p_pred[p_pred==c].shape[0]
+                accuracies[c] = np.sum(p_pred[p_pred-1==c]==Y_test[p_pred-1==c])*1.0
+                accuracies[c] /= p_pred[p_pred-1==c].shape[0]
 
-        X = np.matrix(final_test[TRAIN_COLUMNS].fillna(0))
+        X = np.matrix(final_test.fillna(0))
         f_pred = xgb.predict_proba(X)
 
 def compile_nn(input_dim, output_dim):
     ## Layer 1
     nn_model = Sequential()
-    nn_model.add(Dense(output_dim=512, input_dim=(input_dim,)))
-    nn_model.add(PReLU())
-    nn_model.add(BatchNormalization())
+    nn_model.add(Dense(input_dim, 512, init='glorot_uniform'))
+    nn_model.add(PReLU(512))
+    nn_model.add(BatchNormalization(512))
     nn_model.add(Dropout(0.5))
 
     ## Layer 2
-    nn_model.add(Dense(512))
-    nn_model.add(PReLU())
-    nn_model.add(BatchNormalization())
+    nn_model.add(Dense(512, 512))
+    nn_model.add(PReLU(512))
+    nn_model.add(BatchNormalization(512))
     nn_model.add(Dropout(0.5))
 
     ## Layer 3
-    nn_model.add(Dense(512))
-    nn_model.add(PReLU())
-    nn_model.add(BatchNormalization())
+    nn_model.add(Dense(512, 512))
+    nn_model.add(PReLU(512))
+    nn_model.add(BatchNormalization(512))
     nn_model.add(Dropout(0.5))
 
-    nn_model.add(Dense(output_dim=output_dim))
+    nn_model.add(Dense(input_dim=512, output_dim=output_dim))
     nn_model.add(Activation("softmax"))
     nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
     return nn_model
@@ -373,7 +370,7 @@ def neural_model(test=True,save_final_results=True):
 
     ## Set up X,Y data for modeling ##
     lb = LabelBinarizer()
-    X = np.matrix(train_full[TRAIN_COLUMNS].fillna(0))
+    X = np.matrix(train_full.fillna(0))
     Y = lb.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
@@ -389,30 +386,25 @@ def neural_model(test=True,save_final_results=True):
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        model.fit(X_train, Y_train, nb_epoch=10, batch_size=128)
+        model.fit(X_train, Y_train, nb_epoch=2, batch_size=128)
 
         if test:
             logging.warn('Test prediction accuracy')
             p_pred = model.predict(X_test)
             p_pred_i = lb.inverse_transform(p_pred)
+            Y_test_i = lb.inverse_transform(Y_test)
 
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == lb.inverse_transform(Y_test))))
-            logging.warn('\n'+classification_report(p_pred_i, Y_test))
-            logging.warn('Log Loss: {}'.format(log_loss(cat_tst_lb, p_pred_p)))
-            logging.warn('Label Ranking Precision score: {}'\
-                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
+            logging.warn('Accuracy: '+str(np.mean(p_pred_i == Y_test_i)))
+            logging.warn('\n'+classification_report(p_pred_i, Y_test_i))
+            logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
 
-            cat_tst_le = le.transform(Y_test)
-            p_pred_le = le.transform(p_pred_i)
-            categories = set(cat_tst_le)
+            categories = set(Y_test_i-1)
             accuracies = np.zeros(len(categories))
             for c in categories:
-                accuracies[c] = np.sum(p_pred_le[p_pred_le==c]==cat_tst_le[p_pred_le==c])*1.0
-                accuracies[c] /= p_pred_le[p_pred_le==c].shape[0]
+                accuracies[c] = np.sum(p_pred_i[p_pred_i-1==c]==Y_test_i[p_pred_i-1==c])*1.0
+                accuracies[c] /= p_pred_i[p_pred_i-1==c].shape[0]
 
-        X = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
-                                ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
+        X = np.matrix(final_test.fillna(0))
         f_pred = model.predict_proba(X)
 
 def logmodels(test=True,save_final_results=True,n_k=4):
@@ -429,22 +421,11 @@ def logmodels(test=True,save_final_results=True,n_k=4):
 
     logging.warn('Create iterative clustered logistic regression model')
     ## Encode categories ##
-    le = LabelEncoder()
     lb = LabelBinarizer()
-    cat_full = le.fit_transform(np.array(target_full).ravel())
-    cat_full_lb = lb.fit_transform(np.array(target_full).ravel())
-
-    mcl = MultiColumnLabelEncoder() ; ohe = OneHotEncoder() ; im = Imputer(strategy='most_frequent')
-    im2 = Imputer(strategy='mean')
-    p = Pipeline([('mcl',mcl),('im',im),('ohe',ohe)])
-
-    ## full dataset ##
-    X = np.concatenate((p.fit_transform(train_full[CAT_COLS]).todense() \
-                            ,im2.fit_transform(np.array(train_full[NUM_COLS]))),axis=1)
-    X_final = np.concatenate((p.transform(final_X_test[CAT_COLS]).todense() \
-                            ,im2.transform(np.array(final_X_test[NUM_COLS]))),axis=1)
-    Y = cat_full_lb
-    categories = set(cat_full)
+    X = np.matrix(train_full.fillna(0))
+    X_final = np.matrix(final_test.fillna(0))
+    Y = lb.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
+    categories = range(Y.shape[1])
 
     ## Initialize Clusters ##
     km = KMeans(n_clusters=n_k)
@@ -452,9 +433,8 @@ def logmodels(test=True,save_final_results=True,n_k=4):
     clusters_p = km.predict(X_final)
     X = np.concatenate((np.matrix(clusters).T,X),axis=1)
     X_final = np.concatenate((np.matrix(clusters_p).T,X_final),axis=1)
-    cluster_set = set(clusters.tolist())
+    cluster_set = range(n_k)
 
-    ## Set up X,Y data for modeling ##
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
@@ -470,6 +450,7 @@ def logmodels(test=True,save_final_results=True,n_k=4):
         f_pred = np.zeros((X_final.shape[0],Y_train.shape[1]))
         p_pred = np.zeros((X_test.shape[0],Y_test.shape[1]))
         for k in cluster_set:
+            logging.warn('Running logistic model for {} cluster'.format(k))
             for c in categories:
                 # find cluster subset
                 k_locs = np.array(X_train[:,0]==k).ravel()
@@ -499,24 +480,19 @@ def logmodels(test=True,save_final_results=True,n_k=4):
 
         if test:
             logging.warn('Test prediction accuracy')
-            p_pred_i = np.argmax(p_pred,axis=1)
-            cat_tst_lb = Y_test
-            Y_test = le.transform(lb.inverse_transform(Y_test))
+            p_pred_i = np.argmax(p_pred, axis=1)+1
             p_pred_lb = lb.transform(p_pred_i)
+            Y_test = lb.inverse_transform(Y_test)
             p_pred_p = p_pred
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == Y_test)))
+            logging.warn('Accuracy: {}'.format(str(np.mean(p_pred_i == Y_test))))
             logging.warn('\n'+classification_report(p_pred_i, Y_test))
             logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
-            logging.warn('Label Ranking Precision score: {}'\
-                            .format(label_ranking_average_precision_score(cat_tst_lb, p_pred_p)))
-            logging.warn('Label Ranking loss: {}'.format(label_ranking_loss(cat_tst_lb, p_pred_p)))
-            logging.warn('NDCG score: {}'.format(ndcg_score(cat_tst_lb, p_pred_p, k=5)))
 
-            categories = set(Y_test)
+            categories = set(Y_test-1)
             accuracies = np.zeros(len(categories))
             for c in categories:
-                accuracies[c] = np.sum(p_pred_i[p_pred_i==c]==Y_test[p_pred_i==c])*1.0
-                accuracies[c] /= p_pred_i[p_pred_i==c].shape[0]
+                accuracies[c] = np.sum(p_pred_i[p_pred_i-1==c]==Y_test[p_pred_i-1==c])*1.0
+                accuracies[c] /= p_pred_i[p_pred_i-1==c].shape[0]
 
 def write_submission():
     global f_pred
