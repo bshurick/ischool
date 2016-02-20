@@ -35,6 +35,8 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
+
+# distance metrics
 from scipy.spatial.distance import *
 
 # Metrics
@@ -57,6 +59,22 @@ import xgboost as xgb
 # matplotlib
 import matplotlib.pyplot as plt
 #get_ipython().magic(u'matplotlib inline')
+
+# nltk
+import nltk
+from nltk.corpus import wordnet as wn
+import sys
+#print all the synset element of an element
+def synonyms(string):
+    syndict = {}
+    for i,j in enumerate(wn.synsets(string)):
+        syns = j.lemma_names
+        for syn in syns:
+            syndict.setdefault(syn,1)
+    keys = syndict.keys()
+    out = [ k for k in keys if k != string ]
+    return out
+synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in x.split()))
 
 # ### Declare Args
 def declare_args():
@@ -189,17 +207,20 @@ def combine_data():
     ## vectorize words in attributes
     ## add Tf-Idf transformer here!
     cv = TfidfVectorizer(stop_words='english')
-    train_full_vec = cv.fit_transform(train_full['product_title']+train_full['description_words'])
-    final_test_vec = cv.transform(final_test['product_title']+final_test['description_words'])
+    train_full_vec = cv.fit_transform(train_full['product_title']+' '+train_full['description_words'])
+    final_test_vec = cv.transform(final_test['product_title']+' '+final_test['description_words'])
 
     ## vectorize search terms
-    train_full_stvec = cv.transform(train_full['search_term'])
-    final_test_stvec = cv.transform(final_test['search_term'])
+    train_full['search_term_expanded'] = train_full['search_term']+' '+synonym_text(train_full['search_term'])
+    final_test['search_term_expanded'] = final_test['search_term']+' '+synonym_text(final_test['search_term'])
+    train_full_stvec = cv.transform(train_full['search_term_expanded'])
+    final_test_stvec = cv.transform(final_test['search_term_expanded'])
 
     ## calculate distances between search terms and product data
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
-    metrics = ['jaccard','np.dot','euclidean','braycurtis'
+    metrics = ['jaccard','np.dot','euclidean'
+                ,'braycurtis'
                 ,'canberra','correlation','cityblock'
                 ,'hamming','kulsinski','chebyshev'
                 ,'matching','cosine','dice','rogerstanimoto'
