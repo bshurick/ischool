@@ -231,7 +231,7 @@ def combine_data():
     distances_test = {}
     for m in metrics:
         distances_train[m] = np.zeros(N)
-        distances_test[m] = np.zeros(N)
+        distances_test[m] = np.zeros(N2)
     for m in metrics:
         logging.warn('Calculating distance metric {}'.format(m))
         for i in range(max(N,N2)):
