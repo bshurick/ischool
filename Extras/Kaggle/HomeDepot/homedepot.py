@@ -219,6 +219,7 @@ def combine_data():
     ## calculate distances between search terms and product data
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
+    N2 = final_test_vec.shape[0]
     metrics = ['jaccard','np.dot','euclidean'
                 ,'braycurtis'
                 ,'canberra','correlation','cityblock'
@@ -233,18 +234,20 @@ def combine_data():
         distances_test[m] = np.zeros(N)
     for m in metrics:
         logging.warn('Calculating distance metric {}'.format(m))
-        for i in range(N):
-            distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
-            distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
+        for i in range(max(N,N2)):
+            if i<N:
+                distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
+            if i<N2:
+                distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
 
     ## calculate further features
     K = 6
     P = 50
 
     km = KMeans(K)
-    train_search_term_km = km.fit_transform(train_full_stvec)
+    train_search_term_km = km.fit_predict(train_full_stvec)
     train_search_term_km = pd.DataFrame({'km':train_search_term_km},index=train_full['id'])
-    final_test_km = km.transform(final_test_stvec)
+    final_test_km = km.predict(final_test_stvec)
     final_test_km = pd.DataFrame({'km':final_test_km},index=final_test['id'])
 
     svd = TruncatedSVD(P)
