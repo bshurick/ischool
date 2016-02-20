@@ -21,7 +21,7 @@ logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(message)s')
 # Sklearn
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.pipeline import Pipeline
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, TruncatedSVD
 from sklearn.preprocessing import StandardScaler,Imputer
 from sklearn.preprocessing import LabelBinarizer, MinMaxScaler
 from sklearn.linear_model import LinearRegression, Ridge, ElasticNet, \
@@ -35,6 +35,7 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
+from scipy.spatial.distance import *
 
 # Metrics
 from sklearn.metrics import log_loss, classification_report \
@@ -56,58 +57,6 @@ import xgboost as xgb
 # matplotlib
 import matplotlib.pyplot as plt
 #get_ipython().magic(u'matplotlib inline')
-
-# custom MCL function
-class MultiColumnLabelEncoder:
-    ''' Create a class that encodes
-        labels for a matrix of data
-    '''
-    def __init__(self, columns = None):
-        self.columns = columns # array of column names to encode
-        self.encoders = {}
-
-    def fit(self,X,y=None):
-        return self # not relevant here
-
-    def get_params(self, deep=True):
-        out = dict()
-        if self.columns: out['columns'] = columns
-        return out
-
-    def transform(self,X):
-        '''
-        Transforms columns of X specified in self.columns using
-        LabelEncoder(). NOTE: Assumes use of Pandas DataFrame
-        '''
-        numerics = [np.float16, np.float32, np.float64]
-        ints = [np.int16, np.int32, np.int64]
-        output = X.copy()
-
-        for colname,col in output.iteritems():
-            if col.dtype not in numerics+ints:
-                le = LabelEncoder()
-                output[colname] = le.fit_transform(output[colname])
-                self.encoders[colname] = le
-            elif col.dtype in numerics+ints:
-                pass
-        return output
-
-    def fit_transform(self,X,y=None):
-        return self.fit(X,y).transform(X)
-
-    def inverse_transform(self, X, y=None):
-        '''
-        Inverse of transform function
-        NOTE: still assumes use of pandas DataFrame
-        '''
-        numerics = [np.float16, np.float32, np.float64]
-        ints = [np.int16, np.int32, np.int64]
-        output = X.copy()
-
-        for colname in self.encoders:
-            le = self.encoders[colname]
-            output[colname] = le.inverse_transform(output[colname])
-        return output
 
 # ### Declare Args
 def declare_args():
@@ -205,25 +154,17 @@ def load_attributes():
 
 def load_descriptions():
     global descriptions
-    global TRAIN_COLUMNS
     logging.warn('Compiling descriptions into features for each product')
 
     ## filter out non-words
     WORDS = re.compile(r'[a-zA-Z]+')
     findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x))))
-    descriptions['words'] = findwords(descriptions['product_description'])
-
-    ## vectorize words in attributes
-    ## add Tf-Idf vectorizer here!
-    cv = CountVectorizer(stop_words='english',max_features=1000, max_df=0.25)
-    descriptions_vec = cv.fit_transform(descriptions['words'])
-    descriptions_new = pd.DataFrame(descriptions_vec.todense(),index=descriptions['product_uid'])
-    descriptions_new.columns = [ 'description_'+str(i) for i in range(len(descriptions_new.columns)) ]
-    TRAIN_COLUMNS += list(descriptions_new.columns)
+    descriptions['description_words'] = findwords(descriptions['product_description'])
+    descriptions_new = pd.DataFrame(descriptions['description_words'],index=descriptions['product_uid'])
     descriptions = descriptions_new
     del descriptions_new
 
-def manipulate_train_data():
+def combine_data():
     global train_full
     global final_test
     global TRAIN_COLUMNS
@@ -235,60 +176,65 @@ def manipulate_train_data():
     train_full['product_title'] = findwords(train_full['product_title'])
     final_test['product_title'] = findwords(final_test['product_title'])
 
-    ## vectorize words in attributes
-    ## add Tf-Idf transformer here!
-    cv = CountVectorizer(stop_words='english',max_features=1000, max_df=0.25)
-    train_full_vec = cv.fit_transform(train_full['product_title'])
-    final_test_vec = cv.transform(final_test['product_title'])
-
-    ## combine data with product index
-    train_full_new = pd.DataFrame(train_full_vec.todense(),index=train_full['id'])
-    train_full_new.columns = [ 'title_'+str(i) for i in range(len(train_full_new.columns)) ]
-    final_test_new = pd.DataFrame(final_test_vec.todense(),index=final_test['id'])
-    final_test_new.columns = [ 'title_'+str(i) for i in range(len(final_test_new.columns)) ]
-    TRAIN_COLUMNS += list(train_full_new.columns)
-
-    ## vectorize search terms
-    cv2 = CountVectorizer(stop_words='english',max_features=1000, max_df=0.25)
-    train_full_stvec = cv2.fit_transform(train_full['search_term'])
-    final_test_stvec = cv2.transform(final_test['search_term'])
-
-    ## combine search term data
-    train_full_stnew = pd.DataFrame(train_full_stvec.todense(),index=train_full['id'])
-    train_full_stnew.columns = [ 'search_'+str(i) for i in range(len(train_full_stnew.columns)) ]
-    final_test_stnew = pd.DataFrame(final_test_stvec.todense(),index=final_test['id'])
-    final_test_stnew.columns = [ 'search_'+str(i) for i in range(len(final_test_stnew.columns)) ]
-    train_full_new = pd.concat((train_full, train_full_new, train_full_stnew),axis=1)
-    final_test_new = pd.concat((final_test, final_test_new, final_test_stnew),axis=1)
-    TRAIN_COLUMNS += list(train_full_stnew.columns)
-    train_full = train_full_new
-    final_test = final_test_new
-    del train_full_new
-    del final_test_new
-
-def combine_data():
-    global descriptions
-    global attributes
-    global train_full
-    global target_full
-    global final_test
-    logging.warn('Combining datasets')
-
-    ## attach product data to training set
+    ## Combine description data
     train_full.index = train_full['product_uid']
     final_test.index = final_test['product_uid']
-
-    ## merge attribute data
-    train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
-    final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
-
-    ## merge description data
     train_full = pd.merge(train_full, descriptions, how='left', left_index=True, right_index=True)
     final_test = pd.merge(final_test, descriptions, how='left', left_index=True, right_index=True)
 
-    ## reset indices
+    ## Set ID's back
     train_full.index = train_full['id']
     final_test.index = final_test['id']
+
+    ## vectorize words in attributes
+    ## add Tf-Idf transformer here!
+    cv = TfidfVectorizer(stop_words='english')
+    train_full_vec = cv.fit_transform(train_full['product_title']+train_full['description_words'])
+    final_test_vec = cv.transform(final_test['product_title']+final_test['description_words'])
+
+    ## vectorize search terms
+    train_full_stvec = cv.transform(train_full['search_term'])
+    final_test_stvec = cv.transform(final_test['search_term'])
+
+    ## calculate distances between search terms and product data
+    denseit = lambda x: np.array(x.todense()).ravel()
+    N = train_full_vec.shape[0]
+    metrics = ['jaccard','np.dot','euclidean','braycurtis'
+                ,'canberra','correlation','cityblock'
+                ,'hamming','kulsinski','chebyshev'
+                ,'matching','cosine','dice','rogerstanimoto'
+                ,'russellrao','sokalmichener','sokalsneath'
+                ,'sqeuclidean']
+    distances_train = {}
+    distances_test = {}
+    for m in metrics:
+        distances_train[m] = np.zeros(N)
+        distances_test[m] = np.zeros(N)
+    for m in metrics:
+        logging.warn('Calculating distance metric {}'.format(m))
+        for i in range(N):
+            distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
+            distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
+
+    ## calculate further features
+    K = 6
+    P = 50
+
+    km = KMeans(K)
+    train_search_term_km = km.fit_transform(train_full_stvec)
+    train_search_term_km = pd.DataFrame({'km':train_search_term_km},index=train_full['id'])
+    final_test_km = km.transform(final_test_stvec)
+    final_test_km = pd.DataFrame({'km':final_test_km},index=final_test['id'])
+
+    svd = TruncatedSVD(P)
+    train_search_term_svd = svd.fit_transform(train_full_stvec)
+    train_search_term_svd = pd.DataFrame(train_search_term_svd,index=train_full['id'],columns=['svd_'+str(i) for i in range(P)])
+    final_search_term_svd = svd.transform(final_test_stvec)
+    final_search_term_svd = pd.DataFrame(final_search_term_svd,index=final_test['id'],columns=['svd_'+str(i) for i in range(P)])
+
+    ## replace train data with distances data frame
+    train_full = pd.DataFrame(distances_train,index=train_full['id'])
+    final_test = pd.DataFrame(distances_test,index=final_test['id'])
 
 # ### Run forest model ##
 def forest_model(test=True,grid_cv=False,save_final_results=True):
@@ -357,19 +303,19 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
 def compile_nn(input_dim, output_dim):
     ## Layer 1
     nn_model = Sequential()
-    nn_model.add(Dense(output_dim=1024, input_dim=(input_dim,), W_regularizer=l2(0.1)))
+    nn_model.add(Dense(output_dim=512, input_dim=(input_dim,)))
     nn_model.add(PReLU())
     nn_model.add(BatchNormalization())
     nn_model.add(Dropout(0.5))
 
     ## Layer 2
-    nn_model.add(Dense(1024))
+    nn_model.add(Dense(512))
     nn_model.add(PReLU())
     nn_model.add(BatchNormalization())
     nn_model.add(Dropout(0.5))
 
     ## Layer 3
-    nn_model.add(Dense(1024))
+    nn_model.add(Dense(512))
     nn_model.add(PReLU())
     nn_model.add(BatchNormalization())
     nn_model.add(Dropout(0.5))
@@ -557,12 +503,6 @@ def run():
 
     # load description data
     load_descriptions()
-
-    # load attribute data
-    load_attributes()
-
-    # manipulate_train_data
-    manipulate_train_data()
 
     # combine datasets to final
     combine_data()
