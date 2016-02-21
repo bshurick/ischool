@@ -80,6 +80,7 @@ synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(
 categorize = np.vectorize(lambda x: round(x,1))
 WORDS = re.compile(r'[a-zA-Z]+')
 findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x).lower())))
+countwords = np.vectorize(lambda x: len(WORDS.findall(str(x).lower())))
 
 # ### Declare Args
 def declare_args():
@@ -268,6 +269,19 @@ def combine_data():
             tf_max_score_test[i] = np.max(final_test_stvec_tf[i,:].todense())
             tf_score_total_test[i] = np.sum(final_test_stvec_tf[i,:].todense())
 
+    matching_scores_train = pd.DataFrame({'matching_words':matching_words_train
+                                          ,'tf_max_score':tf_max_score_train
+                                          ,'tf_score_total':tf_max_score_train}
+                                          , index = train_full.index)
+    matching_scores_train['matching_words_pct'] = matching_scores_train['matching_words'] \
+                                                    / countwords(train_full['search_term'])
+    matching_scores_test = pd.DataFrame({'matching_words':matching_words_test
+                                          ,'tf_max_score':tf_max_score_test
+                                          ,'tf_score_total':tf_max_score_test}
+                                          , index = final_test.index)
+    matching_scores_test['matching_words_pct'] = matching_scores_test['matching_words'] \
+                                                    / countwords(final_test['search_term'])
+
     ## calculate further features
     K = 6
     P = 100
@@ -295,15 +309,11 @@ def combine_data():
     # combined all datasets
     logging.warn('Combining datasets')
     train_full = pd.concat((train_full_distances
-                            , matching_words_train
-                            , tf_max_score_train
-                            , tf_score_total_train
+                            , matching_scores_train
                             , train_search_term_km
                             , train_search_term_svd ), axis=1)
     final_test = pd.concat((final_test_distances
-                            , matching_words_test
-                            , tf_max_score_test
-                            , tf_score_total_test
+                            , matching_scores_test
                             , final_test_km
                             , final_search_term_svd ), axis=1)
 
@@ -411,7 +421,7 @@ def neural_model(test=True,save_final_results=True):
                                                       , random_state=0)
 
     ## Neural Network ##
-    model = compile_nn(X.shape[1],Y.shape[1], 1024)
+    model = compile_nn(X.shape[1], Y.shape[1], 2048)
 
     if save_final_results:
         ''' Write results to a csv file
