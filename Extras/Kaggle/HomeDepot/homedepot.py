@@ -170,19 +170,21 @@ def load_descriptions():
 def combine_data():
     global train_full
     global final_test
-    logging.warn('Compiling descriptions into features for each product')
+    logging.warn('Combining all datasets')
 
     ## filter out non-words in title
     train_full['product_title'] = findwords(train_full['product_title'])
     final_test['product_title'] = findwords(final_test['product_title'])
 
     ## Combine description data
+    logging.warn('Combining descriptions')
     train_full.index = train_full['product_uid']
     final_test.index = final_test['product_uid']
     train_full = pd.merge(train_full, descriptions, how='left', left_index=True, right_index=True)
     final_test = pd.merge(final_test, descriptions, how='left', left_index=True, right_index=True)
 
     ## Combine attributes data
+    logging.warn('Combining attributes')
     train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
     final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
 
@@ -191,6 +193,7 @@ def combine_data():
     final_test.index = final_test['id']
 
     ## vectorize words in attributes
+    logging.warn('Calculate count and TF-IDF vectors for title+description+attributes')
     cv = CountVectorizer(stop_words='english')
     tf = TfidfTransformer()
     train_full_vec = cv.fit_transform(train_full['product_title'].fillna('')
@@ -203,6 +206,7 @@ def combine_data():
     final_test_vec_tf = tf.transform(final_test_vec)
 
     ## vectorize search terms
+    logging.warn('Calculate count and TF-IDF vectors for search terms')
     # train_full['search_term_expanded'] = train_full['search_term']+' '+synonym_text(train_full['search_term'])
     # final_test['search_term_expanded'] = final_test['search_term']+' '+synonym_text(final_test['search_term'])
     train_full_stvec = cv.transform(train_full['search_term'].apply(lambda x: x.lower()))
@@ -211,6 +215,7 @@ def combine_data():
     final_test_stvec_tf = tf.transform(final_test_stvec)
 
     ## calculate distances between search terms and product data
+    logging.warn('Run distance calculations')
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
     N2 = final_test_vec.shape[0]
@@ -223,16 +228,27 @@ def combine_data():
     distances_test = {}
     for m in metrics:
         distances_train[m] = np.zeros(N)
+        distances_train[m+'_tf'] = np.zeros(N)
         distances_test[m] = np.zeros(N2)
+        distances_test[m+'_tf'] = np.zeros(N2)
     for m in metrics:
         logging.warn('Calculating distance metric {}'.format(m))
         for i in range(max(N,N2)):
             if i<N:
                 distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
-                distances_train[m+'_tf'][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
+                distances_train[m+'_tf'][i] = eval(m+'(denseit(train_full_vec_tf['+str(i)+',:]),denseit(train_full_stvec_tf['+str(i)+',:]))')
             if i<N2:
                 distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
-                distances_test[m][i+'_tf'] = eval(m+'(denseit(final_test_vec_tf['+str(i)+',:]),denseit(final_test_stvec_tf['+str(i)+',:]))')
+                distances_test[m+'_tf'][i] = eval(m+'(denseit(final_test_vec_tf['+str(i)+',:]),denseit(final_test_stvec_tf['+str(i)+',:]))')
+
+    ## create new train data with distance measurements
+    logging.warn('Save distance data')
+    train_full_distances = pd.DataFrame(distances_train)
+    final_test_distances = pd.DataFrame(distances_test)
+    train_full_distances.index = train_full.index
+    final_test_distances.index = final_test.index
+    train_full_distances.to_csv('Data/train_distances.csv', index=True)
+    final_test_distances.to_csv('Data/test_distances.csv', index=True)
 
     ## add matching words count
     logging.warn('Calculate matching words and TF scores')
@@ -251,14 +267,6 @@ def combine_data():
             matching_words_test[i] = np.sum(final_test_stvec[i,:].todense())
             tf_max_score_test[i] = np.max(final_test_stvec_tf[i,:].todense())
             tf_score_total_test[i] = np.sum(final_test_stvec_tf[i,:].todense())
-
-    ## create new train data with distance measurements
-    train_full_distances = pd.DataFrame(distances_train)
-    final_test_distances = pd.DataFrame(distances_test)
-    train_full_distances.index = train_full.index
-    final_test_distances.index = final_test.index
-    train_full_distances.to_csv('Data/train_distances.csv', index=True)
-    final_test_distances.to_csv('Data/test_distances.csv', index=True)
 
     ## calculate further features
     K = 6
