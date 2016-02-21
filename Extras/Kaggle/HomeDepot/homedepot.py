@@ -76,6 +76,11 @@ def synonyms(string):
     return out
 synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in x.split()))
 
+# custom functions
+categorize = np.vectorize(lambda x: round(x,1))
+WORDS = re.compile(r'[a-zA-Z]+')
+findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x).lower())))
+
 # ### Declare Args
 def declare_args():
     ''' Declare global arguments and strings
@@ -141,32 +146,14 @@ def load_data():
 
 def load_attributes():
     global attributes
-    global TRAIN_COLUMNS
     logging.warn('Compiling attribute dimensions per product')
 
     ## create matrix of attributes by product
-    WORDS = re.compile(r'[a-zA-Z]+')
-    findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x))))
     attributes['words'] = findwords(attributes['value'])
-
-    ## vectorize words in attributes
-    cv = CountVectorizer(stop_words='english', max_features=1000, max_df=0.25)
-    attribute_vec = cv.fit_transform(attributes['words'])
-
-    ## Function to minimize session data at the user level ##
-    def minimize_df(i,lim,n,nparr):
-        m = min(lim,(i+1)*n)
-        return pd.DataFrame(nparr[:,i*n:m].toarray() \
-                    ,index=attributes['product_uid']) \
-                    .groupby(level=0).sum()
-
-    ## Minimize word counts data ##
-    n = attribute_vec.shape[1]//50 # 50 chunks of word count data
-    z = ( minimize_df(y,attribute_vec.shape[1],50,attribute_vec) for y in range(n+1) )
-    attributes_new = pd.concat(z,axis=1)
-    ## add Tf-Idf transformer here!
-    attributes_new.columns = [ 'attribute_'+str(i) for i in range(len(attributes_new.columns)) ]
-    TRAIN_COLUMNS += list(attributes_new.columns)
+    attributes['words'] = attributes['words'] + ' '
+    attributes_new = pd.DataFrame(attributes['words'].groupby(level=0).sum())
+    attributes_new.columns = ['attribute_words']
+    attributes_new.index = pd.Int64Index(attributes_new.index)
     attributes = attributes_new
     del attributes_new
 
@@ -175,8 +162,6 @@ def load_descriptions():
     logging.warn('Compiling descriptions into features for each product')
 
     ## filter out non-words
-    WORDS = re.compile(r'[a-zA-Z]+')
-    findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x))))
     descriptions['description_words'] = findwords(descriptions['product_description'])
     descriptions_new = pd.DataFrame(descriptions['description_words'],index=descriptions['product_uid'])
     descriptions = descriptions_new
@@ -185,12 +170,9 @@ def load_descriptions():
 def combine_data():
     global train_full
     global final_test
-    global TRAIN_COLUMNS
     logging.warn('Compiling descriptions into features for each product')
 
     ## filter out non-words in title
-    WORDS = re.compile(r'[a-zA-Z]+')
-    findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x))))
     train_full['product_title'] = findwords(train_full['product_title'])
     final_test['product_title'] = findwords(final_test['product_title'])
 
@@ -200,32 +182,42 @@ def combine_data():
     train_full = pd.merge(train_full, descriptions, how='left', left_index=True, right_index=True)
     final_test = pd.merge(final_test, descriptions, how='left', left_index=True, right_index=True)
 
+    ## Combine attributes data
+    train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
+    final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
+
     ## Set ID's back
     train_full.index = train_full['id']
     final_test.index = final_test['id']
 
     ## vectorize words in attributes
-    ## add Tf-Idf transformer here!
-    cv = TfidfVectorizer(stop_words='english')
-    train_full_vec = cv.fit_transform(train_full['product_title']+' '+train_full['description_words'])
-    final_test_vec = cv.transform(final_test['product_title']+' '+final_test['description_words'])
+    cv = CountVectorizer(stop_words='english')
+    tf = TfidfTransformer()
+    train_full_vec = cv.fit_transform(train_full['product_title'].fillna('')
+                                    +' '+train_full['description_words'].fillna('')
+                                    +' '+train_full['attribute_words'].fillna(''))
+    final_test_vec = cv.transform(final_test['product_title'].fillna('')
+                                    +' '+final_test['description_words'].fillna('')
+                                    +' '+final_test['attribute_words'].fillna(''))
+    train_full_vec_tf = tf.fit_transform(train_full_vec)
+    final_test_vec_tf = tf.transform(final_test_vec)
 
     ## vectorize search terms
-    train_full['search_term_expanded'] = train_full['search_term']+' '+synonym_text(train_full['search_term'])
-    final_test['search_term_expanded'] = final_test['search_term']+' '+synonym_text(final_test['search_term'])
-    train_full_stvec = cv.transform(train_full['search_term_expanded'])
-    final_test_stvec = cv.transform(final_test['search_term_expanded'])
+    # train_full['search_term_expanded'] = train_full['search_term']+' '+synonym_text(train_full['search_term'])
+    # final_test['search_term_expanded'] = final_test['search_term']+' '+synonym_text(final_test['search_term'])
+    train_full_stvec = cv.transform(train_full['search_term'].apply(lambda x: x.lower()))
+    final_test_stvec = cv.transform(final_test['search_term'].apply(lambda x: x.lower()))
+    train_full_stvec_tf = tf.transform(train_full_stvec)
+    final_test_stvec_tf = tf.transform(final_test_stvec)
 
     ## calculate distances between search terms and product data
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
     N2 = final_test_vec.shape[0]
-    metrics = ['jaccard','np.dot','euclidean'
-                ,'braycurtis'
+    metrics = ['euclidean','braycurtis'
                 ,'canberra','correlation','cityblock'
-                ,'hamming','kulsinski','chebyshev'
-                ,'matching','cosine','dice','rogerstanimoto'
-                ,'russellrao','sokalmichener','sokalsneath'
+                ,'hamming','chebyshev','cosine','dice','rogerstanimoto'
+                ,'sokalmichener','sokalsneath'
                 ,'sqeuclidean']
     distances_train = {}
     distances_test = {}
@@ -237,8 +229,28 @@ def combine_data():
         for i in range(max(N,N2)):
             if i<N:
                 distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
+                distances_train[m+'_tf'][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
             if i<N2:
                 distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
+                distances_test[m][i+'_tf'] = eval(m+'(denseit(final_test_vec_tf['+str(i)+',:]),denseit(final_test_stvec_tf['+str(i)+',:]))')
+
+    ## add matching words count
+    logging.warn('Calculate matching words and TF scores')
+    matching_words_train = np.zeros(N)
+    tf_max_score_train = np.zeros(N)
+    tf_score_total_train = np.zeros(N)
+    matching_words_test = np.zeros(N2)
+    tf_max_score_test = np.zeros(N2)
+    tf_score_total_test = np.zeros(N2)
+    for i in range(max(N,N2)):
+        if i<N:
+            matching_words_train[i] = np.sum(train_full_stvec[i,:].todense())
+            tf_max_score_train[i] = np.max(train_full_stvec_tf[i,:].todense())
+            tf_score_total_train[i] = np.sum(train_full_stvec_tf[i,:].todense())
+        if i<N2:
+            matching_words_test[i] = np.sum(final_test_stvec[i,:].todense())
+            tf_max_score_test[i] = np.max(final_test_stvec_tf[i,:].todense())
+            tf_score_total_test[i] = np.sum(final_test_stvec_tf[i,:].todense())
 
     ## create new train data with distance measurements
     train_full_distances = pd.DataFrame(distances_train)
@@ -250,9 +262,10 @@ def combine_data():
 
     ## calculate further features
     K = 6
-    P = 50
+    P = 100
 
     ## KMeans clustering
+    logging.warn('KMeans clustering')
     km = KMeans(K)
     train_search_term_km = km.fit_predict(train_full_stvec)
     train_search_term_km = pd.DataFrame({'km':train_search_term_km})
@@ -262,6 +275,7 @@ def combine_data():
     final_test_km.index = final_test.index
 
     ## Decompose features into smaller subset
+    logging.warn('SVD of search-term count vectors')
     svd = TruncatedSVD(P)
     train_search_term_svd = svd.fit_transform(train_full_stvec)
     train_search_term_svd = pd.DataFrame(train_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
@@ -271,8 +285,19 @@ def combine_data():
     final_search_term_svd.index = final_test.index
 
     # combined all datasets
-    train_full = pd.concat((train_full_distances, train_search_term_km, train_search_term_svd ), axis=1)
-    final_test = pd.concat((final_test_distances, final_test_km, final_search_term_svd ), axis=1)
+    logging.warn('Combining datasets')
+    train_full = pd.concat((train_full_distances
+                            , matching_words_train
+                            , tf_max_score_train
+                            , tf_score_total_train
+                            , train_search_term_km
+                            , train_search_term_svd ), axis=1)
+    final_test = pd.concat((final_test_distances
+                            , matching_words_test
+                            , tf_max_score_test
+                            , tf_score_total_test
+                            , final_test_km
+                            , final_search_term_svd ), axis=1)
 
 # ### Run forest model ##
 def forest_model(test=True,grid_cv=False,save_final_results=True):
@@ -284,12 +309,12 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
     global GS_CV
     global f_pred
     global accuracies
-    categorize = np.vectorize(lambda x: int(round(x,0)))
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
+    le = LabelEncoder()
     X = np.matrix(train_full.fillna(0))
-    Y = categorize(np.array(target_full[TARGET_COLUMN]).ravel())
+    Y = le.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
@@ -314,7 +339,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
-        logging.warn('Make predictions for final test set')
+        logging.warn('Make predictions for final test set with settings: {}'.format(GS_CV))
         xgb = XGBClassifier(learning_rate=0.1, n_estimators=1000,
                             objective='multi:softprob',seed=0, **GS_CV)
         xgb.fit(X_train , Y_train)
@@ -322,7 +347,6 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             logging.warn('Test prediction accuracy')
             p_pred = xgb.predict(X_test)
             p_pred_p = xgb.predict_proba(X_test)
-            cat_tst_lb = lb.fit_transform(Y_test)
             logging.warn('Accuracy: '+str(np.mean(p_pred == Y_test)))
             logging.warn('\n'+classification_report(p_pred, Y_test))
             logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
@@ -335,27 +359,25 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
         X = np.matrix(final_test.fillna(0))
         f_pred = xgb.predict_proba(X)
 
-def compile_nn(input_dim, output_dim):
+def compile_nn(input_dim, output_dim, size=512):
     ## Layer 1
+    size = size
     nn_model = Sequential()
-    nn_model.add(Dense(input_dim, 512, init='glorot_uniform'))
-    nn_model.add(PReLU(512))
-    nn_model.add(BatchNormalization(512))
+    nn_model.add(Dense(input_dim, size, init='glorot_uniform', W_regularizer=l2(0.1)))
+    nn_model.add(PReLU(size))
     nn_model.add(Dropout(0.5))
 
     ## Layer 2
-    nn_model.add(Dense(512, 512))
-    nn_model.add(PReLU(512))
-    nn_model.add(BatchNormalization(512))
+    nn_model.add(Dense(size, size))
+    nn_model.add(PReLU(size))
     nn_model.add(Dropout(0.5))
 
     ## Layer 3
-    nn_model.add(Dense(512, 512))
-    nn_model.add(PReLU(512))
-    nn_model.add(BatchNormalization(512))
+    nn_model.add(Dense(size, size))
+    nn_model.add(PReLU(size))
     nn_model.add(Dropout(0.5))
 
-    nn_model.add(Dense(input_dim=512, output_dim=output_dim))
+    nn_model.add(Dense(input_dim=size, output_dim=output_dim))
     nn_model.add(Activation("softmax"))
     nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
     return nn_model
@@ -363,15 +385,17 @@ def compile_nn(input_dim, output_dim):
 def neural_model(test=True,save_final_results=True):
     global train_full
     global target_full
+    global accuracies
     global TRAIN_COLUMNS
-    categorize = np.vectorize(lambda x: int(round(x,0)))
 
     logging.warn('Create neural model with training data')
 
     ## Set up X,Y data for modeling ##
     lb = LabelBinarizer()
+    le = LabelEncoder()
     X = np.matrix(train_full.fillna(0))
-    Y = lb.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
+    c = le.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
+    Y = lb.fit_transform(c)
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
@@ -379,14 +403,14 @@ def neural_model(test=True,save_final_results=True):
                                                       , random_state=0)
 
     ## Neural Network ##
-    model = compile_nn(X.shape[1],Y.shape[1])
+    model = compile_nn(X.shape[1],Y.shape[1], 1024)
 
     if save_final_results:
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
         logging.warn('Make predictions for final test set')
-        model.fit(X_train, Y_train, nb_epoch=2, batch_size=128)
+        model.fit(X_train, Y_train, nb_epoch=25, batch_size=128)
 
         if test:
             logging.warn('Test prediction accuracy')
@@ -422,9 +446,11 @@ def logmodels(test=True,save_final_results=True,n_k=4):
     logging.warn('Create iterative clustered logistic regression model')
     ## Encode categories ##
     lb = LabelBinarizer()
+    le = LabelEncoder()
     X = np.matrix(train_full.fillna(0))
     X_final = np.matrix(final_test.fillna(0))
-    Y = lb.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
+    c = le.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
+    Y = lb.fit_transform(c)
     categories = range(Y.shape[1])
 
     ## Initialize Clusters ##
@@ -500,7 +526,7 @@ def write_submission():
     ## Write to submission file ##
     roundpreds = np.vectorize(lambda x: int(round(x,0)))
     preds = roundpreds(np.argmax(f_pred,axis=1)+1)
-    ids = final_test['id'].ravel()
+    ids = final_test.index.ravel()
     results_df = pd.DataFrame({'id':ids,'relevance':preds})
     results_df.to_csv('Data/submission.csv',index=False)
 
@@ -518,11 +544,14 @@ def run():
     # load description data
     load_descriptions()
 
+    # load attributes data
+    load_attributes()
+
     # combine datasets to final
     combine_data()
 
     # Run forest model
-    GS_CV = {'subsample': 0.25, 'colsample_bytree': 0.25, 'max_depth': 6}
+    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 12}
     forest_model(test=True, grid_cv=False, save_final_results=True)
     f_pred_for = f_pred
     accuracies_for = accuracies
