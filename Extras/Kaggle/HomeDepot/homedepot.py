@@ -157,26 +157,25 @@ def load_data():
     descriptions = pd.read_csv(PRODUCT_DESCRIPTIONS_FILE)
     descriptions.index = descriptions['product_uid']
 
-def load_attributes(refresh=True):
+def load_attributes(refresh=True, sourcefile='Data/attributes_new.csv'):
     global attributes
     logging.warn('Compiling attribute dimensions per product')
     if refresh:
         ## create matrix of attributes by product
         attributes['attribute_words'] = findwords(attributes['value'])
-        attributes['attribute_stems'] = getstems(synonym_text(attributes['attribute_words'])) + ' '
+        del attributes['value']
         attributes['attribute_words'] = attributes['attribute_words'] + ' '
-        attributes_new = pd.DataFrame(attributes['attribute_stems'].groupby(level=0).sum())
-        attributes_new.columns = ['attribute_stems']
-        attributes_new['attribute_words'] = pd.Series(attributes['attribute_words'].groupby(level=0).sum())
-        attributes_new['attribute_synonyms'] = pd.Series(attributes['attribute_synonyms'].groupby(level=0).sum())
-        attributes_new.to_csv('Data/attributes_new.csv')
+        attributes_new = pd.DataFrame(attributes['attribute_words'].groupby(level=0).sum())
+        del attributes
+        attributes_new['attribute_stems'] = getstems(synonym_text(attributes_new['attribute_words']))
         attributes_new.index = pd.Int64Index(attributes_new.index)
+        attributes_new.to_csv(sourcefile, index=True)
         attributes = attributes_new
         del attributes_new
     else:
-        attributes = pd.read_csv('Data/attributes_new.csv')
+        attributes = pd.read_csv(sourcefile)
 
-def load_descriptions(refresh=True):
+def load_descriptions(refresh=True, sourcefile='Data/descriptions_new.csv'):
     global descriptions
     logging.warn('Compiling descriptions into features for each product')
     if refresh:
@@ -184,10 +183,10 @@ def load_descriptions(refresh=True):
         descriptions['description_words'] = findwords(descriptions['product_description'])
         del descriptions['product_description']
         descriptions['description_stems'] = getstems(synonym_text(descriptions['description_words']))
-        descriptions.to_csv('Data/descriptions_new.csv')
         descriptions.index = descriptions['product_uid']
+        descriptions.to_csv(sourcefile, index=True)
     else:
-        descriptions = pd.read_csv('Data/descriptions_new.csv')
+        descriptions = pd.read_csv(sourcefile)
 
 def combine_data():
     global train_full
@@ -212,18 +211,31 @@ def combine_data():
     train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
     final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
 
-    ## Set ID's back
+
+    ## transform search terms
+    logging.warn('Transforming search terms using stemmer and synonyms')
+    train_full['search_term_original'] = train_full['search_term']
+    final_test['search_term_original'] = final_test['search_term']
+    train_full['search_term'] = findwords(train_full['search_term'])
+    train_full['search_term'] = getstems(synonym_text(train_full['search_term']))
+    final_test['search_term'] = findwords(final_test['search_term'])
+    final_test['search_term'] = getstems(synonym_text(final_test['search_term']))
+
+    ## Set ID's back and save data to disk
     train_full.index = train_full['id']
     final_test.index = final_test['id']
+    train_full.to_csv('Data/train_full_stems.csv', index=True)
+    final_test.to_csv('Data/final_test_stems.csv', index=True)
 
     ## vectorize words in attributes
     logging.warn('Calculate count and TF-IDF vectors for title+description+attributes')
     cv = CountVectorizer(stop_words='english')
     tf = TfidfTransformer()
-    vocab = pd.concat(train_full['product_stems'].fillna(''),final_test['product_stems'].fillna(''))
-                      +' '+pd.concat(train_full['description_stems'].fillna(''),final_test['description_stems'].fillna(''))
-                      +' '+pd.concat(train_full['attribute_stems'].fillna(''),final_test['attribute_stems'].fillna(''))
-    tf.fit(cv.fit(vocab))
+    vocab = pd.concat((train_full['product_stems'].fillna(''),final_test['product_stems'].fillna(''))) \
+                      +' '+pd.concat((train_full['description_stems'].fillna(''),final_test['description_stems'].fillna(''))) \
+                      +' '+pd.concat((train_full['attribute_stems'].fillna(''),final_test['attribute_stems'].fillna('')))
+    cv.fit(vocab)
+    tf.fit(cv.transform(vocab))
     train_full_vec = cv.transform(train_full['product_stems'].fillna('')
                                     +' '+train_full['description_stems'].fillna('')
                                     +' '+train_full['attribute_stems'].fillna(''))
@@ -243,7 +255,7 @@ def combine_data():
     final_test_vec_tf_title = tf_title.transform(final_test_vec_title)
 
     ## vectorize words in description
-    logging.warn('Calculate count and TF-IDF vectors for title')
+    logging.warn('Calculate count and TF-IDF vectors for description')
     cv_desc = CountVectorizer(stop_words='english')
     tf_desc = TfidfTransformer()
     train_full_vec_desc = cv_desc.fit_transform(train_full['description_stems'].fillna(''))
@@ -259,13 +271,6 @@ def combine_data():
     final_test_vec_attr = cv_attr.transform(final_test['attribute_stems'].fillna(''))
     train_full_vec_tf_attr = tf_attr.fit_transform(train_full_vec_attr)
     final_test_vec_tf_attr = tf_attr.transform(final_test_vec_attr)
-
-    ## transform search terms
-    logging.warn('Transforming search terms using stemmer and synonyms')
-    train_full['search_term_original'] = train_full['search_term']
-    train_full['search_term'] = findwords(train_full['search_term'])
-    train_full['search_term'] = synonym_text(train_full['search_term'])
-    train_full['search_term'] = getstems(train_full['search_term'])
 
     ## vectorize search terms
     logging.warn('Calculate count and TF-IDF vectors for search terms')
@@ -298,10 +303,14 @@ def combine_data():
     distances_train = {}
     distances_test = {}
     for m in metrics:
-        distances_train[m] = np.zeros(N)
-        distances_train[m+'_tf'] = np.zeros(N)
-        distances_test[m] = np.zeros(N2)
-        distances_test[m+'_tf'] = np.zeros(N2)
+        distances_train[m] = np.zeros(N); distances_test[m] = np.zeros(N2)
+        distances_train[m+'_tf'] = np.zeros(N); distances_test[m+'_tf'] = np.zeros(N2)
+        distances_train[m+'_title'] = np.zeros(N); distances_test[m+'_title'] = np.zeros(N2)
+        distances_train[m+'_tf_title'] = np.zeros(N); distances_test[m+'_tf_title'] = np.zeros(N2)
+        distances_train[m+'_desc'] = np.zeros(N); distances_test[m+'_desc'] = np.zeros(N2)
+        distances_train[m+'_tf_desc'] = np.zeros(N); distances_test[m+'_tf_desc'] = np.zeros(N2)
+        distances_train[m+'_attr'] = np.zeros(N); distances_test[m+'_attr'] = np.zeros(N2)
+        distances_train[m+'_tf_attr'] = np.zeros(N); distances_test[m+'_tf_attr'] = np.zeros(N2)
     for m in metrics:
         logging.warn('Calculating distance metric {}'.format(m))
         for i in range(max(N,N2)):
