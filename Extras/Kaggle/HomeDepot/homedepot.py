@@ -91,7 +91,7 @@ def getstems(x):
 
 findwords = np.vectorize(findwords)
 getstems = np.vectorize(getstems)
-synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in x.split()))
+synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in set(x.split())))
 countwords = np.vectorize(lambda x: len(WORDS.findall(str(x).lower())))
 
 # ### Declare Args
@@ -163,9 +163,7 @@ def load_attributes(refresh=True):
     if refresh:
         ## create matrix of attributes by product
         attributes['attribute_words'] = findwords(attributes['value'])
-        attributes['attribute_synonyms'] = synonym_text(attributes['attribute_words'])
-        attributes['attribute_stems'] = getstems(attributes['attribute_synonyms']) + ' '
-        attributes['attribute_synonyms'] = attributes['attribute_synonyms'] + ' '
+        attributes['attribute_stems'] = getstems(synonym_text(attributes['attribute_words'])) + ' '
         attributes['attribute_words'] = attributes['attribute_words'] + ' '
         attributes_new = pd.DataFrame(attributes['attribute_stems'].groupby(level=0).sum())
         attributes_new.columns = ['attribute_stems']
@@ -184,10 +182,10 @@ def load_descriptions(refresh=True):
     if refresh:
         ## create matrix of descriptions by product
         descriptions['description_words'] = findwords(descriptions['product_description'])
-        descriptions['description_synonyms'] = synonym_text(descriptions['description_words'])
-        descriptions['description_stems'] = getstems(descriptions['description_synonyms'])
+        del descriptions['product_description']
+        descriptions['description_stems'] = getstems(synonym_text(descriptions['description_words']))
         descriptions.to_csv('Data/descriptions_new.csv')
-        descriptions.index = descriptions['product_uid'])
+        descriptions.index = descriptions['product_uid']
     else:
         descriptions = pd.read_csv('Data/descriptions_new.csv')
 
@@ -198,7 +196,9 @@ def combine_data():
 
     ## filter out non-words in title
     train_full['product_title'] = findwords(train_full['product_title'])
+    train_full['product_stems'] = getstems(synonym_text(train_full['product_title']))
     final_test['product_title'] = findwords(final_test['product_title'])
+    final_test['product_stems'] = getstems(synonym_text(final_test['product_title']))
 
     ## Combine description data
     logging.warn('Combining descriptions')
@@ -220,21 +220,25 @@ def combine_data():
     logging.warn('Calculate count and TF-IDF vectors for title+description+attributes')
     cv = CountVectorizer(stop_words='english')
     tf = TfidfTransformer()
-    train_full_vec = cv.fit_transform(train_full['product_title'].fillna('')
+    vocab = pd.concat(train_full['product_stems'].fillna(''),final_test['product_stems'].fillna(''))
+                      +' '+pd.concat(train_full['description_stems'].fillna(''),final_test['description_stems'].fillna(''))
+                      +' '+pd.concat(train_full['attribute_stems'].fillna(''),final_test['attribute_stems'].fillna(''))
+    tf.fit(cv.fit(vocab))
+    train_full_vec = cv.transform(train_full['product_stems'].fillna('')
                                     +' '+train_full['description_stems'].fillna('')
                                     +' '+train_full['attribute_stems'].fillna(''))
-    final_test_vec = cv.transform(final_test['product_title'].fillna('')
+    final_test_vec = cv.transform(final_test['product_stems'].fillna('')
                                     +' '+final_test['description_stems'].fillna('')
                                     +' '+final_test['attribute_stems'].fillna(''))
-    train_full_vec_tf = tf.fit_transform(train_full_vec)
+    train_full_vec_tf = tf.transform(train_full_vec)
     final_test_vec_tf = tf.transform(final_test_vec)
 
     ## vectorize words in title
     logging.warn('Calculate count and TF-IDF vectors for title')
     cv_title = CountVectorizer(stop_words='english')
     tf_title = TfidfTransformer()
-    train_full_vec_title = cv_title.fit_transform(train_full['product_title'].fillna(''))
-    final_test_vec_title = cv_title.transform(final_test['product_title'].fillna(''))
+    train_full_vec_title = cv_title.fit_transform(train_full['product_stems'].fillna(''))
+    final_test_vec_title = cv_title.transform(final_test['product_stems'].fillna(''))
     train_full_vec_tf_title = tf_title.fit_transform(train_full_vec_title)
     final_test_vec_tf_title = tf_title.transform(final_test_vec_title)
 
@@ -434,19 +438,26 @@ def combine_data():
                                                     / countwords(final_test['search_term'])
 
     ## calculate further features
-    P = 50
+    P = 100
 
     ## Decompose features into smaller subset
     logging.warn('SVD of smaller search-term count vectors')
     svd = TruncatedSVD(P)
-    cv = CountVectorizer(stop_words='english', max_features=1000)
+    cv = CountVectorizer(stop_words='english')
     tf = TfidfTransformer()
 
     train_full_stvec = cv.fit_transform(train_full['search_term_original'])
     final_test_stvec = cv.transform(final_test['search_term_original'])
     train_full_stvec_tf = tf.fit_transform(train_full_stvec)
     final_test_stvec_tf = tf.transform(final_test_stvec)
-
+    matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec,axis=1) \
+                                                            / np.sum(cv.transform(train_full['product_title'] \
+                                                                                    +' '+train_full['description_words'] \
+                                                                                    +' '+train_full['attribute_words']),axis=1)
+    matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec,axis=1) \
+                                                            / np.sum(cv.transform(final_test['product_title'] \
+                                                                                    +' '+final_test['description_words'] \
+                                                                                    +' '+final_test['attribute_words']),axis=1)
     train_full_vec_tf = tf.fit_transform(train_full_vec)
     final_test_vec_tf = tf.transform(final_test_vec)
     train_search_term_svd = svd.fit_transform(train_full_stvec)
@@ -528,10 +539,10 @@ def run():
     declare_args(); load_data()
 
     # load description data
-    load_descriptions()
+    load_descriptions(refresh=False)
 
     # load attributes data
-    load_attributes()
+    load_attributes(refresh=False)
 
     # combine datasets to final
     combine_data()
