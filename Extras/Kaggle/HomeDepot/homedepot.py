@@ -326,12 +326,12 @@ def combine_data():
             if i<N2:
                 distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
                 distances_test[m+'_tf'][i] = eval(m+'(denseit(final_test_vec_tf['+str(i)+',:]),denseit(final_test_stvec_tf['+str(i)+',:]))')
-                distances_train[m+'_title'][i] = eval(m+'(denseit(final_test_vec_title['+str(i)+',:]),denseit(final_test_stvec_title['+str(i)+',:]))')
-                distances_train[m+'_tf_title'][i] = eval(m+'(denseit(final_test_vec_tf_title['+str(i)+',:]),denseit(final_test_stvec_tf_title['+str(i)+',:]))')
-                distances_train[m+'_desc'][i] = eval(m+'(denseit(final_test_vec_desc['+str(i)+',:]),denseit(final_test_stvec_desc['+str(i)+',:]))')
-                distances_train[m+'_tf_desc'][i] = eval(m+'(denseit(final_test_vec_tf_desc['+str(i)+',:]),denseit(final_test_stvec_tf_desc['+str(i)+',:]))')
-                distances_train[m+'_attr'][i] = eval(m+'(denseit(final_test_vec_attr['+str(i)+',:]),denseit(final_test_stvec_attr['+str(i)+',:]))')
-                distances_train[m+'_tf_attr'][i] = eval(m+'(denseit(final_test_vec_tf_attr['+str(i)+',:]),denseit(final_test_stvec_tf_attr['+str(i)+',:]))')
+                distances_test[m+'_title'][i] = eval(m+'(denseit(final_test_vec_title['+str(i)+',:]),denseit(final_test_stvec_title['+str(i)+',:]))')
+                distances_test[m+'_tf_title'][i] = eval(m+'(denseit(final_test_vec_tf_title['+str(i)+',:]),denseit(final_test_stvec_tf_title['+str(i)+',:]))')
+                distances_test[m+'_desc'][i] = eval(m+'(denseit(final_test_vec_desc['+str(i)+',:]),denseit(final_test_stvec_desc['+str(i)+',:]))')
+                distances_test[m+'_tf_desc'][i] = eval(m+'(denseit(final_test_vec_tf_desc['+str(i)+',:]),denseit(final_test_stvec_tf_desc['+str(i)+',:]))')
+                distances_test[m+'_attr'][i] = eval(m+'(denseit(final_test_vec_attr['+str(i)+',:]),denseit(final_test_stvec_attr['+str(i)+',:]))')
+                distances_test[m+'_tf_attr'][i] = eval(m+'(denseit(final_test_vec_tf_attr['+str(i)+',:]),denseit(final_test_stvec_tf_attr['+str(i)+',:]))')
 
     ## create new train data with distance measurements
     logging.warn('Save distance data')
