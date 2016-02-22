@@ -76,14 +76,15 @@ def synonyms(string):
     keys = syndict.keys()
     out = [ k for k in keys if k != string ]
     return out
-synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in x.split()))
+synonym_text = lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in x.split())
 
 # custom functions
-WORDS = re.compile(r'[a-zA-Z]+')
+WORDS = re.compile(r'[a-zA-Z_]+')
 stemmer = SnowballStemmer("english")
 def findwords(x):
-    words = WORDS.findall(str(x).lower())
-    stems = [ stemmer.stem(w) for w in words ]
+    words = ' '.join(WORDS.findall(str(x).lower()))
+    words_synonyms = synonym_text(words)
+    stems = [ stemmer.stem(w) for w in words_synonyms.split() ]
     combined = ' '.join(stems)
     return combined
 
@@ -214,12 +215,14 @@ def combine_data():
     train_full_vec_tf = tf.fit_transform(train_full_vec)
     final_test_vec_tf = tf.transform(final_test_vec)
 
+    ## transform search terms
+    logging.warn('Transforming search terms using stemmer and synonyms')
+    train_full['search_term'] = findwords(train_full['search_term'])
+
     ## vectorize search terms
     logging.warn('Calculate count and TF-IDF vectors for search terms')
-    # train_full['search_term_expanded'] = train_full['search_term']+' '+synonym_text(train_full['search_term'])
-    # final_test['search_term_expanded'] = final_test['search_term']+' '+synonym_text(final_test['search_term'])
-    train_full_stvec = cv.transform(train_full['search_term'].apply(lambda x: x.lower()))
-    final_test_stvec = cv.transform(final_test['search_term'].apply(lambda x: x.lower()))
+    train_full_stvec = cv.transform(train_full['search_term'])
+    final_test_stvec = cv.transform(final_test['search_term'])
     train_full_stvec_tf = tf.transform(train_full_stvec)
     final_test_stvec_tf = tf.transform(final_test_stvec)
 
@@ -228,12 +231,11 @@ def combine_data():
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
     N2 = final_test_vec.shape[0]
-    metrics = ['euclidean','cosine','chebyshev']
-                #     'braycurtis'
-                # ,'canberra','correlation','cityblock'
-                # ,'hamming',,,'dice','rogerstanimoto'
-                # ,'sokalmichener','sokalsneath'
-                # ,'sqeuclidean']
+    metrics = ['euclidean','cosine','chebyshev'
+                'braycurtis','canberra','correlation','cityblock'
+                ,'hamming','dice','rogerstanimoto'
+                ,'sokalmichener','sokalsneath'
+                ,'sqeuclidean']
     distances_train = {}
     distances_test = {}
     for m in metrics:
@@ -292,22 +294,21 @@ def combine_data():
                                                     / countwords(final_test['search_term'])
 
     ## calculate further features
-    K = 6
-    P = 500
-
-    ## KMeans clustering
-    logging.warn('KMeans clustering')
-    km = KMeans(K)
-    train_search_term_km = km.fit_predict(train_full_stvec)
-    train_search_term_km = pd.DataFrame({'km':train_search_term_km})
-    train_search_term_km.index = train_full.index
-    final_test_km = km.predict(final_test_stvec)
-    final_test_km = pd.DataFrame({'km':final_test_km})
-    final_test_km.index = final_test.index
+    P = 50
 
     ## Decompose features into smaller subset
-    logging.warn('SVD of search-term count vectors')
+    logging.warn('SVD of smaller search-term count vectors')
     svd = TruncatedSVD(P)
+    cv = CountVectorizer(stop_words='english', max_features=1000)
+    tf = TfidfTransformer()
+
+    train_full_stvec = cv.fit_transform(train_full['search_term'])
+    final_test_stvec = cv.transform(final_test['search_term'])
+    train_full_stvec_tf = tf.fit_transform(train_full_stvec)
+    final_test_stvec_tf = tf.transform(final_test_stvec)
+
+    train_full_vec_tf = tf.fit_transform(train_full_vec)
+    final_test_vec_tf = tf.transform(final_test_vec)
     train_search_term_svd = svd.fit_transform(train_full_stvec)
     train_search_term_svd = pd.DataFrame(train_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
     train_search_term_svd.index = train_full.index
@@ -332,7 +333,7 @@ def combine_data():
     final_test.to_csv('Data/final_test_v2.csv',index=True)
 
 # ### Run forest model ##
-def forest_model(save_final_results=True):
+def forest_model(save_final_results=True, test=True):
     ''' execute final model
     '''
     global train_full
@@ -342,27 +343,28 @@ def forest_model(save_final_results=True):
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
-    X = np.matrix(train_full.fillna(0))
+    im = Imputer(strategy='median')
+    X = im.fit_transform(np.matrix(train_full))
     Y = np.array(target_full[TARGET_COLUMN]).ravel()
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
                                                       , test_size=TEST_SIZE \
                                                       , random_state=0)
+    rfr = RandomForestRegressor(**PARAMS)
+    if test:
+        logging.warn('Test prediction accuracy')
+        rfr.fit(X_train , Y_train)
+        p_pred = rfr.predict(X_test)
+        logging.warn('RMSE: '+str(np.sqrt(np.mean((p_pred-Y_test)**2))))
 
     ## Run model with all data and save ##
     if save_final_results:
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
-        rfr = RandomForestRegressor(**PARAMS)
-        rfr.fit(X_train , Y_train)
-        if test:
-            logging.warn('Test prediction accuracy')
-            p_pred = rfr.predict(X_test)
-            logging.warn('RMSE: '+str(np.sqrt(np.mean((p_pred-Y_test)**2))))
-
-        X = np.matrix(final_test.fillna(0))
+        rfr.fit(X , Y)
+        X = im.transform(np.matrix(final_test))
         f_pred = rfr.predict(X)
 
 def write_submission():
@@ -395,7 +397,7 @@ def run():
     combine_data()
 
     # run forest model
-    forest_model(save_final_results=True)
+    forest_model(test=True, save_final_results=True)
 
     # Write submission file
     write_submission()
