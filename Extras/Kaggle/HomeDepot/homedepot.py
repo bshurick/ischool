@@ -15,6 +15,7 @@ import pandas as pd
 import numpy as np
 import re
 import logging
+import sys
 from itertools import product
 logging.basicConfig(level=logging.DEBUG,format='%(asctime)s %(message)s')
 
@@ -64,7 +65,7 @@ import matplotlib.pyplot as plt
 # nltk
 import nltk
 from nltk.corpus import wordnet as wn
-import sys
+from nltk.stem import *
 #print all the synset element of an element
 def synonyms(string):
     syndict = {}
@@ -79,7 +80,8 @@ synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(
 
 # custom functions
 WORDS = re.compile(r'[a-zA-Z]+')
-findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x).lower())))
+stemmer = SnowballStemmer("english")
+findwords = np.vectorize(lambda x: ' '.join(stemmer.stem(w for w in WORDS.findall(str(x).lower()))))
 countwords = np.vectorize(lambda x: len(WORDS.findall(str(x).lower())))
 
 # ### Declare Args
@@ -96,7 +98,7 @@ def declare_args():
     global PRODUCT_DESCRIPTIONS_COLUMNS
     global TRAIN_COLUMNS
     global TARGET_COLUMN
-    global GS_CV
+    global PARAMS
 
     ## Files ##
     ATTRIBUTES_FILE = 'Data/attributes.csv.gz'
@@ -114,8 +116,8 @@ def declare_args():
     TRAIN_COLUMNS = []
     TARGET_COLUMN = [u'relevance']
 
-    # XGA boost params
-    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 8}
+    # regressor params
+    PARAMS = {'n_estimators':1000, 'n_jobs':-1,'verbose':1,'max_features':15,'max_depth':20 }
 
 # ### Read data
 def load_data():
@@ -220,11 +222,12 @@ def combine_data():
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
     N2 = final_test_vec.shape[0]
-    metrics = ['euclidean','braycurtis'
-                ,'canberra','correlation','cityblock'
-                ,'hamming','chebyshev','cosine','dice','rogerstanimoto'
-                ,'sokalmichener','sokalsneath'
-                ,'sqeuclidean']
+    metrics = ['euclidean','cosine','chebyshev']
+                #     'braycurtis'
+                # ,'canberra','correlation','cityblock'
+                # ,'hamming',,,'dice','rogerstanimoto'
+                # ,'sokalmichener','sokalsneath'
+                # ,'sqeuclidean']
     distances_train = {}
     distances_test = {}
     for m in metrics:
@@ -284,7 +287,7 @@ def combine_data():
 
     ## calculate further features
     K = 6
-    P = 100
+    P = 500
 
     ## KMeans clustering
     logging.warn('KMeans clustering')
@@ -328,16 +331,13 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
     '''
     global train_full
     global target_full
-    global TRAIN_COLUMNS
-    global GS_CV
     global f_pred
-    global accuracies
+    global PARAMS
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
-    le = LabelEncoder()
     X = np.matrix(train_full.fillna(0))
-    Y = np.array(target_full[TARGET_COLUMN]).ravel())
+    Y = np.array(target_full[TARGET_COLUMN]).ravel()
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
@@ -349,7 +349,7 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
-        rfr = RandomForestRegressor(n_estimators = 500, n_jobs = -1, verbose = 1, max_features=10, max_depth=20)
+        rfr = RandomForestRegressor(**PARAMS)
         rfr.fit(X_train , Y_train)
         if test:
             logging.warn('Test prediction accuracy')
@@ -357,14 +357,13 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
             logging.warn('RMSE: '+str(np.sqrt(np.mean((p_pred-Y_test)**2))))
 
         X = np.matrix(final_test.fillna(0))
-        f_pred = le.inverse_transform(xgb.predict_proba(X))
+        f_pred = rfr.predict(X)
 
 def write_submission():
     global f_pred
     global final_test
     ## Write to submission file ##
-    roundpreds = np.vectorize(lambda x: int(round(x,0)))
-    preds = roundpreds(np.argmax(f_pred,axis=1)+1)
+    preds = f_pred
     ids = final_test.index.ravel()
     results_df = pd.DataFrame({'id':ids,'relevance':preds})
     results_df.to_csv('Data/submission.csv',index=False)
@@ -388,30 +387,6 @@ def run():
 
     # combine datasets to final
     combine_data()
-
-    # Run forest model
-    GS_CV = {'subsample': 0.5, 'colsample_bytree': 0.5, 'max_depth': 12}
-    forest_model(test=True, grid_cv=False, save_final_results=True)
-    f_pred_for = f_pred
-    accuracies_for = accuracies
-
-    # Run neural model
-    neural_model(test=True, save_final_results=True)
-    f_pred_nn = f_pred
-    accuracies_nn = accuracies
-
-    # Run clustered LR models
-    logmodels(test=True, save_final_results=True, n_k=3)
-    f_pred_log = f_pred
-    accuracies_log = accuracies
-
-    # Combine models
-    accuracies_for[np.isnan(accuracies_for)] = 0
-    accuracies_log[np.isnan(accuracies_log)] = 0
-    w_for = accuracies_for/(accuracies_for+accuracies_log)
-    w_for[np.isnan(w_for)] = 0
-    w_log = 1-w_for
-    f_pred = f_pred_log*w_log + f_pred_for*w_for
 
     # Write submission file
     write_submission()
