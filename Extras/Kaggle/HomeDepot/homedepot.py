@@ -231,8 +231,8 @@ def combine_data():
     denseit = lambda x: np.array(x.todense()).ravel()
     N = train_full_vec.shape[0]
     N2 = final_test_vec.shape[0]
-    metrics = ['euclidean','cosine','chebyshev'
-                'braycurtis','canberra','correlation','cityblock'
+    metrics = ['euclidean','cosine','chebyshev','np.dot'
+                ,'braycurtis','canberra','correlation','cityblock'
                 ,'hamming','dice','rogerstanimoto'
                 ,'sokalmichener','sokalsneath'
                 ,'sqeuclidean']
