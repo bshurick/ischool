@@ -332,7 +332,7 @@ def combine_data():
     final_test.to_csv('Data/final_test_v2.csv',index=True)
 
 # ### Run forest model ##
-def forest_model(test=True,grid_cv=False,save_final_results=True):
+def forest_model(save_final_results=True):
     ''' execute final model
     '''
     global train_full
@@ -393,6 +393,9 @@ def run():
 
     # combine datasets to final
     combine_data()
+
+    # run forest model
+    forest_model(save_final_results=True)
 
     # Write submission file
     write_submission()
