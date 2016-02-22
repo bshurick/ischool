@@ -35,6 +35,7 @@ from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_extraction.text import TfidfTransformer, TfidfVectorizer
+from sklearn.ensemble import RandomForestRegressor
 
 # distance metrics
 from scipy.spatial.distance import *
@@ -77,7 +78,6 @@ def synonyms(string):
 synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(z) else []) for z in x.split()))
 
 # custom functions
-categorize = np.vectorize(lambda x: round(x,1))
 WORDS = re.compile(r'[a-zA-Z]+')
 findwords = np.vectorize(lambda x: ' '.join(WORDS.findall(str(x).lower())))
 countwords = np.vectorize(lambda x: len(WORDS.findall(str(x).lower())))
@@ -317,6 +317,11 @@ def combine_data():
                             , final_test_km
                             , final_search_term_svd ), axis=1)
 
+    # save new training and test datasets
+    logging.warn('Save datasets to disk')
+    train_full.to_csv('Data/train_full_v2.csv',index=True)
+    final_test.to_csv('Data/final_test_v2.csv',index=True)
+
 # ### Run forest model ##
 def forest_model(test=True,grid_cv=False,save_final_results=True):
     ''' execute final model
@@ -332,211 +337,27 @@ def forest_model(test=True,grid_cv=False,save_final_results=True):
     ## Encode categories ##
     le = LabelEncoder()
     X = np.matrix(train_full.fillna(0))
-    Y = le.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
+    Y = np.array(target_full[TARGET_COLUMN]).ravel())
     X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
                                                       X \
                                                       , Y \
                                                       , test_size=TEST_SIZE \
                                                       , random_state=0)
-
-    if grid_cv:
-        ## Run grid search to find optimal parameters ##
-        params_grid = {
-        		         'max_depth':[ 15, 20, 25 ] ,
-                         'subsample':[ 0.25, 0.5  ] ,
-                        #  'colsample_bytree':[ 0.25, 0.5, 0.75 ] ,
-                }
-        logging.warn('Running grid search CV with params: {}'.format(params_grid))
-        xgb = XGBClassifier(n_estimators=50, objective='multi:softprob', seed=0)
-        cv = GridSearchCV(xgb, params_grid).fit(X, Y)
-        logging.warn('Best XGB params: {}'.format(cv.best_params_))
-        GS_CV = cv.best_params_
 
     ## Run model with all data and save ##
     if save_final_results:
         ''' Write results to a csv file
             NOTE: sorting is not done here
         '''
-        logging.warn('Make predictions for final test set with settings: {}'.format(GS_CV))
-        xgb = XGBClassifier(learning_rate=0.1, n_estimators=1000,
-                            objective='multi:softprob',seed=0, **GS_CV)
-        xgb.fit(X_train , Y_train)
+        rfr = RandomForestRegressor(n_estimators = 500, n_jobs = -1, verbose = 1, max_features=10, max_depth=20)
+        rfr.fit(X_train , Y_train)
         if test:
             logging.warn('Test prediction accuracy')
-            p_pred = xgb.predict(X_test)
-            p_pred_p = xgb.predict_proba(X_test)
-            logging.warn('Accuracy: '+str(np.mean(p_pred == Y_test)))
-            logging.warn('\n'+classification_report(p_pred, Y_test))
-            logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
-            categories = set(Y_test-1)
-            accuracies = np.zeros(len(categories))
-            for c in categories:
-                accuracies[c] = np.sum(p_pred[p_pred-1==c]==Y_test[p_pred-1==c])*1.0
-                accuracies[c] /= p_pred[p_pred-1==c].shape[0]
+            p_pred = rfr.predict(X_test)
+            logging.warn('RMSE: '+str(np.sqrt(np.mean((p_pred-Y_test)**2))))
 
         X = np.matrix(final_test.fillna(0))
-        f_pred = xgb.predict_proba(X)
-
-def compile_nn(input_dim, output_dim, size=512):
-    ## Layer 1
-    size = size
-    nn_model = Sequential()
-    nn_model.add(Dense(input_dim, size, init='glorot_uniform', W_regularizer=l2(0.1)))
-    nn_model.add(PReLU(size))
-    nn_model.add(Dropout(0.5))
-
-    ## Layer 2
-    nn_model.add(Dense(size, size))
-    nn_model.add(PReLU(size))
-    nn_model.add(Dropout(0.5))
-
-    ## Layer 3
-    nn_model.add(Dense(size, size))
-    nn_model.add(PReLU(size))
-    nn_model.add(Dropout(0.5))
-
-    nn_model.add(Dense(input_dim=size, output_dim=output_dim))
-    nn_model.add(Activation("softmax"))
-    nn_model.compile(loss='categorical_crossentropy', optimizer='sgd')
-    return nn_model
-
-def neural_model(test=True,save_final_results=True):
-    global train_full
-    global target_full
-    global accuracies
-    global TRAIN_COLUMNS
-
-    logging.warn('Create neural model with training data')
-
-    ## Set up X,Y data for modeling ##
-    lb = LabelBinarizer()
-    le = LabelEncoder()
-    X = np.matrix(train_full.fillna(0))
-    c = le.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
-    Y = lb.fit_transform(c)
-    X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
-                                                      X \
-                                                      , Y \
-                                                      , test_size=TEST_SIZE \
-                                                      , random_state=0)
-
-    ## Neural Network ##
-    model = compile_nn(X.shape[1], Y.shape[1], 2048)
-
-    if save_final_results:
-        ''' Write results to a csv file
-            NOTE: sorting is not done here
-        '''
-        logging.warn('Make predictions for final test set')
-        model.fit(X_train, Y_train, nb_epoch=25, batch_size=128)
-
-        if test:
-            logging.warn('Test prediction accuracy')
-            p_pred = model.predict(X_test)
-            p_pred_i = lb.inverse_transform(p_pred)
-            Y_test_i = lb.inverse_transform(Y_test)
-
-            logging.warn('Accuracy: '+str(np.mean(p_pred_i == Y_test_i)))
-            logging.warn('\n'+classification_report(p_pred_i, Y_test_i))
-            logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
-
-            categories = set(Y_test_i-1)
-            accuracies = np.zeros(len(categories))
-            for c in categories:
-                accuracies[c] = np.sum(p_pred_i[p_pred_i-1==c]==Y_test_i[p_pred_i-1==c])*1.0
-                accuracies[c] /= p_pred_i[p_pred_i-1==c].shape[0]
-
-        X = np.matrix(final_test.fillna(0))
-        f_pred = model.predict_proba(X)
-
-def logmodels(test=True,save_final_results=True,n_k=4):
-    global train_full
-    global target_full
-    global X_train
-    global X_test
-    global Y_train
-    global Y_test
-    global final_X_test
-    global GS_CV
-    global f_pred
-    global accuracies
-
-    logging.warn('Create iterative clustered logistic regression model')
-    ## Encode categories ##
-    lb = LabelBinarizer()
-    le = LabelEncoder()
-    X = np.matrix(train_full.fillna(0))
-    X_final = np.matrix(final_test.fillna(0))
-    c = le.fit_transform(categorize(np.array(target_full[TARGET_COLUMN]).ravel()))
-    Y = lb.fit_transform(c)
-    categories = range(Y.shape[1])
-
-    ## Initialize Clusters ##
-    km = KMeans(n_clusters=n_k)
-    clusters = km.fit_predict(X)
-    clusters_p = km.predict(X_final)
-    X = np.concatenate((np.matrix(clusters).T,X),axis=1)
-    X_final = np.concatenate((np.matrix(clusters_p).T,X_final),axis=1)
-    cluster_set = range(n_k)
-
-    X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
-                                                      X \
-                                                      , Y \
-                                                      , test_size=TEST_SIZE \
-                                                      , random_state=0)
-
-    if save_final_results:
-        ''' Write results to a csv file
-            NOTE: sorting is not done here
-        '''
-        logging.warn('Make predictions for final test set')
-        cluster_models = {}
-        f_pred = np.zeros((X_final.shape[0],Y_train.shape[1]))
-        p_pred = np.zeros((X_test.shape[0],Y_test.shape[1]))
-        for k in cluster_set:
-            logging.warn('Running logistic model for {} cluster'.format(k))
-            for c in categories:
-                # find cluster subset
-                k_locs = np.array(X_train[:,0]==k).ravel()
-                k_test_locs = np.array(X_test[:,0]==k).ravel()
-                kp_locs = np.array(X_final[:,0]==k).ravel()
-
-                # subset data
-                X_k = X_train[k_locs,:]
-                X_k_final = X_final[kp_locs,:]
-                Y_k = Y_train[k_locs,c]
-                X_k_test = X_test[k_test_locs,:]
-
-                # initialize model for subset
-                lm = LogisticRegression()
-                lm.fit(X_k, Y_k)
-
-                # predict probability
-                f_pred_tmp = lm.predict_proba(X_k_final)
-                f_pred_test_tmp = lm.predict_proba(X_k_test)
-
-                # fill subset predicted value
-                f_pred[kp_locs,c] = f_pred_tmp[:,1]
-                p_pred[k_test_locs,c] = f_pred_test_tmp[:,1]
-                if k not in cluster_models:
-                    cluster_models[k] = []
-                cluster_models[k].append(lm)
-
-        if test:
-            logging.warn('Test prediction accuracy')
-            p_pred_i = np.argmax(p_pred, axis=1)+1
-            p_pred_lb = lb.transform(p_pred_i)
-            Y_test = lb.inverse_transform(Y_test)
-            p_pred_p = p_pred
-            logging.warn('Accuracy: {}'.format(str(np.mean(p_pred_i == Y_test))))
-            logging.warn('\n'+classification_report(p_pred_i, Y_test))
-            logging.warn('Log Loss: {}'.format(log_loss(Y_test, p_pred_p)))
-
-            categories = set(Y_test-1)
-            accuracies = np.zeros(len(categories))
-            for c in categories:
-                accuracies[c] = np.sum(p_pred_i[p_pred_i-1==c]==Y_test[p_pred_i-1==c])*1.0
-                accuracies[c] /= p_pred_i[p_pred_i-1==c].shape[0]
+        f_pred = le.inverse_transform(xgb.predict_proba(X))
 
 def write_submission():
     global f_pred
