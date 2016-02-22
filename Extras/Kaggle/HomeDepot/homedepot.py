@@ -81,7 +81,13 @@ synonym_text = np.vectorize(lambda x: ' '.join(' '.join(synonyms(z) if synonyms(
 # custom functions
 WORDS = re.compile(r'[a-zA-Z]+')
 stemmer = SnowballStemmer("english")
-findwords = np.vectorize(lambda x: ' '.join(stemmer.stem(w for w in WORDS.findall(str(x).lower()))))
+def findwords(x):
+    words = WORDS.findall(str(x).lower())
+    stems = [ stemmer.stem(w) for w in words ]
+    combined = ' '.join(stems)
+    return combined
+
+findwords = np.vectorize(findwords)
 countwords = np.vectorize(lambda x: len(WORDS.findall(str(x).lower())))
 
 # ### Declare Args
