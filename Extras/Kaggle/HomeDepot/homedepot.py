@@ -173,7 +173,7 @@ def load_attributes(refresh=True, sourcefile='Data/attributes_new.csv'):
         attributes = attributes_new
         del attributes_new
     else:
-        attributes = pd.read_csv(sourcefile)
+        attributes = pd.read_csv(sourcefile, index_col=0)
 
 def load_descriptions(refresh=True, sourcefile='Data/descriptions_new.csv'):
     global descriptions
@@ -186,330 +186,333 @@ def load_descriptions(refresh=True, sourcefile='Data/descriptions_new.csv'):
         descriptions.index = descriptions['product_uid']
         descriptions.to_csv(sourcefile, index=True)
     else:
-        descriptions = pd.read_csv(sourcefile)
+        descriptions = pd.read_csv(sourcefile, index_col=0)
 
-def combine_data():
+def combine_data(refresh=True):
     global train_full
     global final_test
     logging.warn('Combining all datasets')
+    if refresh:
+        ## filter out non-words in title
+        train_full['product_title'] = findwords(train_full['product_title'])
+        train_full['product_stems'] = getstems(synonym_text(train_full['product_title']))
+        final_test['product_title'] = findwords(final_test['product_title'])
+        final_test['product_stems'] = getstems(synonym_text(final_test['product_title']))
 
-    ## filter out non-words in title
-    train_full['product_title'] = findwords(train_full['product_title'])
-    train_full['product_stems'] = getstems(synonym_text(train_full['product_title']))
-    final_test['product_title'] = findwords(final_test['product_title'])
-    final_test['product_stems'] = getstems(synonym_text(final_test['product_title']))
+        ## Combine description data
+        logging.warn('Combining descriptions')
+        train_full.index = train_full['product_uid']
+        final_test.index = final_test['product_uid']
+        train_full = pd.merge(train_full, descriptions, how='left', left_index=True, right_index=True)
+        final_test = pd.merge(final_test, descriptions, how='left', left_index=True, right_index=True)
 
-    ## Combine description data
-    logging.warn('Combining descriptions')
-    train_full.index = train_full['product_uid']
-    final_test.index = final_test['product_uid']
-    train_full = pd.merge(train_full, descriptions, how='left', left_index=True, right_index=True)
-    final_test = pd.merge(final_test, descriptions, how='left', left_index=True, right_index=True)
-
-    ## Combine attributes data
-    logging.warn('Combining attributes')
-    train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
-    final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
+        ## Combine attributes data
+        logging.warn('Combining attributes')
+        train_full = pd.merge(train_full, attributes, how='left', left_index=True, right_index=True)
+        final_test = pd.merge(final_test, attributes, how='left', left_index=True, right_index=True)
 
 
-    ## transform search terms
-    logging.warn('Transforming search terms using stemmer and synonyms')
-    train_full['search_term_original'] = train_full['search_term']
-    final_test['search_term_original'] = final_test['search_term']
-    train_full['search_term'] = findwords(train_full['search_term'])
-    train_full['search_term'] = getstems(synonym_text(train_full['search_term']))
-    final_test['search_term'] = findwords(final_test['search_term'])
-    final_test['search_term'] = getstems(synonym_text(final_test['search_term']))
+        ## transform search terms
+        logging.warn('Transforming search terms using stemmer and synonyms')
+        train_full['search_term_original'] = train_full['search_term']
+        final_test['search_term_original'] = final_test['search_term']
+        train_full['search_term'] = findwords(train_full['search_term'])
+        train_full['search_term'] = getstems(synonym_text(train_full['search_term']))
+        final_test['search_term'] = findwords(final_test['search_term'])
+        final_test['search_term'] = getstems(synonym_text(final_test['search_term']))
 
-    ## Set ID's back and save data to disk
-    train_full.index = train_full['id']
-    final_test.index = final_test['id']
-    train_full.to_csv('Data/train_full_stems.csv', index=True)
-    final_test.to_csv('Data/final_test_stems.csv', index=True)
+        ## Set ID's back and save data to disk
+        train_full.index = train_full['id']
+        final_test.index = final_test['id']
+        train_full.to_csv('Data/train_full_stems.csv', index=True)
+        final_test.to_csv('Data/final_test_stems.csv', index=True)
 
-    ## vectorize words in attributes
-    logging.warn('Calculate count and TF-IDF vectors for title+description+attributes')
-    cv = CountVectorizer(stop_words='english')
-    tf = TfidfTransformer()
-    vocab = pd.concat((train_full['product_stems'].fillna(''),final_test['product_stems'].fillna(''))) \
-                      +' '+pd.concat((train_full['description_stems'].fillna(''),final_test['description_stems'].fillna(''))) \
-                      +' '+pd.concat((train_full['attribute_stems'].fillna(''),final_test['attribute_stems'].fillna('')))
-    cv.fit(vocab)
-    tf.fit(cv.transform(vocab))
-    train_full_vec = cv.transform(train_full['product_stems'].fillna('')
-                                    +' '+train_full['description_stems'].fillna('')
-                                    +' '+train_full['attribute_stems'].fillna(''))
-    final_test_vec = cv.transform(final_test['product_stems'].fillna('')
-                                    +' '+final_test['description_stems'].fillna('')
-                                    +' '+final_test['attribute_stems'].fillna(''))
-    train_full_vec_tf = tf.transform(train_full_vec)
-    final_test_vec_tf = tf.transform(final_test_vec)
+        ## vectorize words in attributes
+        logging.warn('Calculate count and TF-IDF vectors for title+description+attributes')
+        cv = CountVectorizer(stop_words='english')
+        tf = TfidfTransformer()
+        vocab = pd.concat((train_full['product_stems'].fillna(''),final_test['product_stems'].fillna(''))) \
+                          +' '+pd.concat((train_full['description_stems'].fillna(''),final_test['description_stems'].fillna(''))) \
+                          +' '+pd.concat((train_full['attribute_stems'].fillna(''),final_test['attribute_stems'].fillna('')))
+        cv.fit(vocab)
+        tf.fit(cv.transform(vocab))
+        train_full_vec = cv.transform(train_full['product_stems'].fillna('')
+                                        +' '+train_full['description_stems'].fillna('')
+                                        +' '+train_full['attribute_stems'].fillna(''))
+        final_test_vec = cv.transform(final_test['product_stems'].fillna('')
+                                        +' '+final_test['description_stems'].fillna('')
+                                        +' '+final_test['attribute_stems'].fillna(''))
+        train_full_vec_tf = tf.transform(train_full_vec)
+        final_test_vec_tf = tf.transform(final_test_vec)
 
-    ## vectorize words in title
-    logging.warn('Calculate count and TF-IDF vectors for title')
-    cv_title = CountVectorizer(stop_words='english')
-    tf_title = TfidfTransformer()
-    train_full_vec_title = cv_title.fit_transform(train_full['product_stems'].fillna(''))
-    final_test_vec_title = cv_title.transform(final_test['product_stems'].fillna(''))
-    train_full_vec_tf_title = tf_title.fit_transform(train_full_vec_title)
-    final_test_vec_tf_title = tf_title.transform(final_test_vec_title)
+        ## vectorize words in title
+        logging.warn('Calculate count and TF-IDF vectors for title')
+        cv_title = CountVectorizer(stop_words='english')
+        tf_title = TfidfTransformer()
+        train_full_vec_title = cv_title.fit_transform(train_full['product_stems'].fillna(''))
+        final_test_vec_title = cv_title.transform(final_test['product_stems'].fillna(''))
+        train_full_vec_tf_title = tf_title.fit_transform(train_full_vec_title)
+        final_test_vec_tf_title = tf_title.transform(final_test_vec_title)
 
-    ## vectorize words in description
-    logging.warn('Calculate count and TF-IDF vectors for description')
-    cv_desc = CountVectorizer(stop_words='english')
-    tf_desc = TfidfTransformer()
-    train_full_vec_desc = cv_desc.fit_transform(train_full['description_stems'].fillna(''))
-    final_test_vec_desc = cv_desc.transform(final_test['description_stems'].fillna(''))
-    train_full_vec_tf_desc = tf_desc.fit_transform(train_full_vec_desc)
-    final_test_vec_tf_desc = tf_desc.transform(final_test_vec_desc)
+        ## vectorize words in description
+        logging.warn('Calculate count and TF-IDF vectors for description')
+        cv_desc = CountVectorizer(stop_words='english')
+        tf_desc = TfidfTransformer()
+        train_full_vec_desc = cv_desc.fit_transform(train_full['description_stems'].fillna(''))
+        final_test_vec_desc = cv_desc.transform(final_test['description_stems'].fillna(''))
+        train_full_vec_tf_desc = tf_desc.fit_transform(train_full_vec_desc)
+        final_test_vec_tf_desc = tf_desc.transform(final_test_vec_desc)
 
-    ## vectorize words in description
-    logging.warn('Calculate count and TF-IDF vectors for attributes')
-    cv_attr = CountVectorizer(stop_words='english')
-    tf_attr = TfidfTransformer()
-    train_full_vec_attr = cv_attr.fit_transform(train_full['attribute_stems'].fillna(''))
-    final_test_vec_attr = cv_attr.transform(final_test['attribute_stems'].fillna(''))
-    train_full_vec_tf_attr = tf_attr.fit_transform(train_full_vec_attr)
-    final_test_vec_tf_attr = tf_attr.transform(final_test_vec_attr)
+        ## vectorize words in description
+        logging.warn('Calculate count and TF-IDF vectors for attributes')
+        cv_attr = CountVectorizer(stop_words='english')
+        tf_attr = TfidfTransformer()
+        train_full_vec_attr = cv_attr.fit_transform(train_full['attribute_stems'].fillna(''))
+        final_test_vec_attr = cv_attr.transform(final_test['attribute_stems'].fillna(''))
+        train_full_vec_tf_attr = tf_attr.fit_transform(train_full_vec_attr)
+        final_test_vec_tf_attr = tf_attr.transform(final_test_vec_attr)
 
-    ## vectorize search terms
-    logging.warn('Calculate count and TF-IDF vectors for search terms')
-    train_full_stvec = cv.transform(train_full['search_term'])
-    final_test_stvec = cv.transform(final_test['search_term'])
-    train_full_stvec_title = cv_title.transform(train_full['search_term'])
-    final_test_stvec_title = cv_title.transform(final_test['search_term'])
-    train_full_stvec_desc = cv_desc.transform(train_full['search_term'])
-    final_test_stvec_desc = cv_desc.transform(final_test['search_term'])
-    train_full_stvec_attr = cv_attr.transform(train_full['search_term'])
-    final_test_stvec_attr = cv_attr.transform(final_test['search_term'])
-    train_full_stvec_tf = tf.transform(train_full_stvec)
-    final_test_stvec_tf = tf.transform(final_test_stvec)
-    train_full_stvec_tf_title = tf_title.transform(train_full_stvec_title)
-    final_test_stvec_tf_title = tf_title.transform(final_test_stvec_title)
-    train_full_stvec_tf_desc = tf_desc.transform(train_full_stvec_desc)
-    final_test_stvec_tf_desc = tf_desc.transform(final_test_stvec_desc)
-    train_full_stvec_tf_attr = tf_attr.transform(train_full_stvec_attr)
-    final_test_stvec_tf_attr = tf_attr.transform(final_test_stvec_attr)
+        ## vectorize search terms
+        logging.warn('Calculate count and TF-IDF vectors for search terms')
+        train_full_stvec = cv.transform(train_full['search_term'])
+        final_test_stvec = cv.transform(final_test['search_term'])
+        train_full_stvec_title = cv_title.transform(train_full['search_term'])
+        final_test_stvec_title = cv_title.transform(final_test['search_term'])
+        train_full_stvec_desc = cv_desc.transform(train_full['search_term'])
+        final_test_stvec_desc = cv_desc.transform(final_test['search_term'])
+        train_full_stvec_attr = cv_attr.transform(train_full['search_term'])
+        final_test_stvec_attr = cv_attr.transform(final_test['search_term'])
+        train_full_stvec_tf = tf.transform(train_full_stvec)
+        final_test_stvec_tf = tf.transform(final_test_stvec)
+        train_full_stvec_tf_title = tf_title.transform(train_full_stvec_title)
+        final_test_stvec_tf_title = tf_title.transform(final_test_stvec_title)
+        train_full_stvec_tf_desc = tf_desc.transform(train_full_stvec_desc)
+        final_test_stvec_tf_desc = tf_desc.transform(final_test_stvec_desc)
+        train_full_stvec_tf_attr = tf_attr.transform(train_full_stvec_attr)
+        final_test_stvec_tf_attr = tf_attr.transform(final_test_stvec_attr)
 
-    ## calculate distances between search terms and product data
-    logging.warn('Run distance calculations')
-    denseit = lambda x: np.array(x.todense()).ravel()
-    N = train_full_vec.shape[0]
-    N2 = final_test_vec.shape[0]
-    metrics = ['euclidean','cosine','chebyshev','np.dot'
-                ,'braycurtis','canberra','correlation','cityblock'
-                ,'hamming']
-                # ,'dice','rogerstanimoto'
-                # ,'sokalmichener','sokalsneath','sqeuclidean']
-    distances_train = {}
-    distances_test = {}
-    for m in metrics:
-        distances_train[m] = np.zeros(N); distances_test[m] = np.zeros(N2)
-        distances_train[m+'_tf'] = np.zeros(N); distances_test[m+'_tf'] = np.zeros(N2)
-        distances_train[m+'_title'] = np.zeros(N); distances_test[m+'_title'] = np.zeros(N2)
-        distances_train[m+'_tf_title'] = np.zeros(N); distances_test[m+'_tf_title'] = np.zeros(N2)
-        distances_train[m+'_desc'] = np.zeros(N); distances_test[m+'_desc'] = np.zeros(N2)
-        distances_train[m+'_tf_desc'] = np.zeros(N); distances_test[m+'_tf_desc'] = np.zeros(N2)
-        distances_train[m+'_attr'] = np.zeros(N); distances_test[m+'_attr'] = np.zeros(N2)
-        distances_train[m+'_tf_attr'] = np.zeros(N); distances_test[m+'_tf_attr'] = np.zeros(N2)
-    for m in metrics:
-        logging.warn('Calculating distance metric {}'.format(m))
+        ## calculate distances between search terms and product data
+        logging.warn('Run distance calculations')
+        denseit = lambda x: np.array(x.todense()).ravel()
+        N = train_full_vec.shape[0]
+        N2 = final_test_vec.shape[0]
+        metrics = ['euclidean','cosine','chebyshev','np.dot'
+                    ,'braycurtis','canberra','correlation','cityblock'
+                    ,'hamming']
+                    # ,'dice','rogerstanimoto'
+                    # ,'sokalmichener','sokalsneath','sqeuclidean']
+        distances_train = {}
+        distances_test = {}
+        for m in metrics:
+            distances_train[m] = np.zeros(N); distances_test[m] = np.zeros(N2)
+            distances_train[m+'_tf'] = np.zeros(N); distances_test[m+'_tf'] = np.zeros(N2)
+            distances_train[m+'_title'] = np.zeros(N); distances_test[m+'_title'] = np.zeros(N2)
+            distances_train[m+'_tf_title'] = np.zeros(N); distances_test[m+'_tf_title'] = np.zeros(N2)
+            distances_train[m+'_desc'] = np.zeros(N); distances_test[m+'_desc'] = np.zeros(N2)
+            distances_train[m+'_tf_desc'] = np.zeros(N); distances_test[m+'_tf_desc'] = np.zeros(N2)
+            distances_train[m+'_attr'] = np.zeros(N); distances_test[m+'_attr'] = np.zeros(N2)
+            distances_train[m+'_tf_attr'] = np.zeros(N); distances_test[m+'_tf_attr'] = np.zeros(N2)
+        for m in metrics:
+            logging.warn('Calculating distance metric {}'.format(m))
+            for i in range(max(N,N2)):
+                if i<N:
+                    distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
+                    distances_train[m+'_tf'][i] = eval(m+'(denseit(train_full_vec_tf['+str(i)+',:]),denseit(train_full_stvec_tf['+str(i)+',:]))')
+                    distances_train[m+'_title'][i] = eval(m+'(denseit(train_full_vec_title['+str(i)+',:]),denseit(train_full_stvec_title['+str(i)+',:]))')
+                    distances_train[m+'_tf_title'][i] = eval(m+'(denseit(train_full_vec_tf_title['+str(i)+',:]),denseit(train_full_stvec_tf_title['+str(i)+',:]))')
+                    distances_train[m+'_desc'][i] = eval(m+'(denseit(train_full_vec_desc['+str(i)+',:]),denseit(train_full_stvec_desc['+str(i)+',:]))')
+                    distances_train[m+'_tf_desc'][i] = eval(m+'(denseit(train_full_vec_tf_desc['+str(i)+',:]),denseit(train_full_stvec_tf_desc['+str(i)+',:]))')
+                    distances_train[m+'_attr'][i] = eval(m+'(denseit(train_full_vec_attr['+str(i)+',:]),denseit(train_full_stvec_attr['+str(i)+',:]))')
+                    distances_train[m+'_tf_attr'][i] = eval(m+'(denseit(final_test_vec_tf_attr['+str(i)+',:]),denseit(train_full_stvec_tf_attr['+str(i)+',:]))')
+                if i<N2:
+                    distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
+                    distances_test[m+'_tf'][i] = eval(m+'(denseit(final_test_vec_tf['+str(i)+',:]),denseit(final_test_stvec_tf['+str(i)+',:]))')
+                    distances_test[m+'_title'][i] = eval(m+'(denseit(final_test_vec_title['+str(i)+',:]),denseit(final_test_stvec_title['+str(i)+',:]))')
+                    distances_test[m+'_tf_title'][i] = eval(m+'(denseit(final_test_vec_tf_title['+str(i)+',:]),denseit(final_test_stvec_tf_title['+str(i)+',:]))')
+                    distances_test[m+'_desc'][i] = eval(m+'(denseit(final_test_vec_desc['+str(i)+',:]),denseit(final_test_stvec_desc['+str(i)+',:]))')
+                    distances_test[m+'_tf_desc'][i] = eval(m+'(denseit(final_test_vec_tf_desc['+str(i)+',:]),denseit(final_test_stvec_tf_desc['+str(i)+',:]))')
+                    distances_test[m+'_attr'][i] = eval(m+'(denseit(final_test_vec_attr['+str(i)+',:]),denseit(final_test_stvec_attr['+str(i)+',:]))')
+                    distances_test[m+'_tf_attr'][i] = eval(m+'(denseit(final_test_vec_tf_attr['+str(i)+',:]),denseit(final_test_stvec_tf_attr['+str(i)+',:]))')
+
+        ## create new train data with distance measurements
+        logging.warn('Save distance data')
+        train_full_distances = pd.DataFrame(distances_train)
+        final_test_distances = pd.DataFrame(distances_test)
+        train_full_distances.index = train_full.index
+        final_test_distances.index = final_test.index
+        train_full_distances.to_csv('Data/train_distances.csv', index=True)
+        final_test_distances.to_csv('Data/test_distances.csv', index=True)
+
+        ## add matching words count
+        logging.warn('Calculate matching words and TF scores')
+        # matching words overall
+        matching_words_train, matching_words_test = np.zeros(N), np.zeros(N2)
+        tf_max_score_train, tf_max_score_test = np.zeros(N), np.zeros(N2)
+        tf_score_total_train, tf_score_total_test = np.zeros(N), np.zeros(N2)
+        # matching words title
+        matching_words_title_train, matching_words_title_test = np.zeros(N), np.zeros(N2)
+        tf_max_score_title_train, tf_max_score_title_test = np.zeros(N), np.zeros(N2)
+        tf_score_total_title_train, tf_score_total_title_test = np.zeros(N), np.zeros(N2)
+        # matching words description
+        matching_words_desc_train, matching_words_desc_test = np.zeros(N), np.zeros(N2)
+        tf_max_score_desc_train, tf_max_score_desc_test = np.zeros(N), np.zeros(N2)
+        tf_score_total_desc_train, tf_score_total_desc_test = np.zeros(N), np.zeros(N2)
+        # matching words attributes
+        matching_words_attr_train, matching_words_attr_test = np.zeros(N), np.zeros(N2)
+        tf_max_score_attr_train, tf_max_score_attr_test = np.zeros(N), np.zeros(N2)
+        tf_score_total_attr_train, tf_score_total_attr_test = np.zeros(N), np.zeros(N2)
+
         for i in range(max(N,N2)):
             if i<N:
-                distances_train[m][i] = eval(m+'(denseit(train_full_vec['+str(i)+',:]),denseit(train_full_stvec['+str(i)+',:]))')
-                distances_train[m+'_tf'][i] = eval(m+'(denseit(train_full_vec_tf['+str(i)+',:]),denseit(train_full_stvec_tf['+str(i)+',:]))')
-                distances_train[m+'_title'][i] = eval(m+'(denseit(train_full_vec_title['+str(i)+',:]),denseit(train_full_stvec_title['+str(i)+',:]))')
-                distances_train[m+'_tf_title'][i] = eval(m+'(denseit(train_full_vec_tf_title['+str(i)+',:]),denseit(train_full_stvec_tf_title['+str(i)+',:]))')
-                distances_train[m+'_desc'][i] = eval(m+'(denseit(train_full_vec_desc['+str(i)+',:]),denseit(train_full_stvec_desc['+str(i)+',:]))')
-                distances_train[m+'_tf_desc'][i] = eval(m+'(denseit(train_full_vec_tf_desc['+str(i)+',:]),denseit(train_full_stvec_tf_desc['+str(i)+',:]))')
-                distances_train[m+'_attr'][i] = eval(m+'(denseit(train_full_vec_attr['+str(i)+',:]),denseit(train_full_stvec_attr['+str(i)+',:]))')
-                distances_train[m+'_tf_attr'][i] = eval(m+'(denseit(final_test_vec_tf_attr['+str(i)+',:]),denseit(train_full_stvec_tf_attr['+str(i)+',:]))')
+                # overall
+                matching_words_train[i] = np.sum(train_full_stvec[i,:].todense())
+                tf_max_score_train[i] = np.max(train_full_stvec_tf[i,:].todense())
+                tf_score_total_train[i] = np.sum(train_full_stvec_tf[i,:].todense())
+                # title
+                matching_words_title_train[i] = np.sum(train_full_stvec_title[i,:].todense())
+                tf_max_score_title_train[i] = np.max(train_full_stvec_tf_title[i,:].todense())
+                tf_score_total_title_train[i] = np.sum(train_full_stvec_tf_title[i,:].todense())
+                # description
+                matching_words_desc_train[i] = np.sum(train_full_stvec_desc[i,:].todense())
+                tf_max_score_desc_train[i] = np.max(train_full_stvec_tf_desc[i,:].todense())
+                tf_score_total_desc_train[i] = np.sum(train_full_stvec_tf_desc[i,:].todense())
+                # attributes
+                matching_words_attr_train[i] = np.sum(train_full_stvec_attr[i,:].todense())
+                tf_max_score_attr_train[i] = np.max(train_full_stvec_tf_attr[i,:].todense())
+                tf_score_total_attr_train[i] = np.sum(train_full_stvec_tf_attr[i,:].todense())
             if i<N2:
-                distances_test[m][i] = eval(m+'(denseit(final_test_vec['+str(i)+',:]),denseit(final_test_stvec['+str(i)+',:]))')
-                distances_test[m+'_tf'][i] = eval(m+'(denseit(final_test_vec_tf['+str(i)+',:]),denseit(final_test_stvec_tf['+str(i)+',:]))')
-                distances_test[m+'_title'][i] = eval(m+'(denseit(final_test_vec_title['+str(i)+',:]),denseit(final_test_stvec_title['+str(i)+',:]))')
-                distances_test[m+'_tf_title'][i] = eval(m+'(denseit(final_test_vec_tf_title['+str(i)+',:]),denseit(final_test_stvec_tf_title['+str(i)+',:]))')
-                distances_test[m+'_desc'][i] = eval(m+'(denseit(final_test_vec_desc['+str(i)+',:]),denseit(final_test_stvec_desc['+str(i)+',:]))')
-                distances_test[m+'_tf_desc'][i] = eval(m+'(denseit(final_test_vec_tf_desc['+str(i)+',:]),denseit(final_test_stvec_tf_desc['+str(i)+',:]))')
-                distances_test[m+'_attr'][i] = eval(m+'(denseit(final_test_vec_attr['+str(i)+',:]),denseit(final_test_stvec_attr['+str(i)+',:]))')
-                distances_test[m+'_tf_attr'][i] = eval(m+'(denseit(final_test_vec_tf_attr['+str(i)+',:]),denseit(final_test_stvec_tf_attr['+str(i)+',:]))')
+                # overall
+                matching_words_test[i] = np.sum(final_test_stvec[i,:].todense())
+                tf_max_score_test[i] = np.max(final_test_stvec_tf[i,:].todense())
+                tf_score_total_test[i] = np.sum(final_test_stvec_tf[i,:].todense())
+                # title
+                matching_words_title_test[i] = np.sum(final_test_stvec_title[i,:].todense())
+                tf_max_score_title_test[i] = np.max(final_test_stvec_tf_title[i,:].todense())
+                tf_score_total_title_test[i] = np.sum(final_test_stvec_tf_title[i,:].todense())
+                # description
+                matching_words_desc_test[i] = np.sum(final_test_stvec_desc[i,:].todense())
+                tf_max_score_desc_test[i] = np.max(final_test_stvec_tf_desc[i,:].todense())
+                tf_score_total_desc_test[i] = np.sum(final_test_stvec_tf_desc[i,:].todense())
+                # attributes
+                matching_words_attr_test[i] = np.sum(final_test_stvec_attr[i,:].todense())
+                tf_max_score_attr_test[i] = np.max(final_test_stvec_tf_attr[i,:].todense())
+                tf_score_total_attr_test[i] = np.sum(final_test_stvec_tf_attr[i,:].todense())
 
-    ## create new train data with distance measurements
-    logging.warn('Save distance data')
-    train_full_distances = pd.DataFrame(distances_train)
-    final_test_distances = pd.DataFrame(distances_test)
-    train_full_distances.index = train_full.index
-    final_test_distances.index = final_test.index
-    train_full_distances.to_csv('Data/train_distances.csv', index=True)
-    final_test_distances.to_csv('Data/test_distances.csv', index=True)
+        matching_scores_train = pd.DataFrame({
+                                                'matching_words':matching_words_train
+                                                 , 'tf_max_score':tf_max_score_train
+                                                 , 'tf_score_total':tf_max_score_train
+                                                 , 'matching_words_title':matching_words_title_train
+                                                 , 'tf_max_score_title':tf_max_score_title_train
+                                                 , 'tf_score_total_title':tf_max_score_title_train
+                                                 , 'matching_words_desc':matching_words_desc_train
+                                                 , 'tf_max_score_desc':tf_max_score_desc_train
+                                                 , 'tf_score_total_desc':tf_max_score_desc_train
+                                                 , 'matching_words_attr':matching_words_attr_train
+                                                 , 'tf_max_score_attr':tf_max_score_attr_train
+                                                 , 'tf_score_total_attr':tf_max_score_attr_train
+                                              }
+                                              , index = train_full.index)
+        matching_scores_train['matching_words_pct'] = matching_scores_train['matching_words'] \
+                                                        / countwords(train_full['search_term'])
+        matching_scores_train['matching_words_title_pct'] = matching_scores_train['matching_words_title'] \
+                                                        / countwords(train_full['search_term'])
+        matching_scores_train['matching_words_desc_pct'] = matching_scores_train['matching_words_desc'] \
+                                                        / countwords(train_full['search_term'])
+        matching_scores_train['matching_words_attr_pct'] = matching_scores_train['matching_words_attr'] \
+                                                        / countwords(train_full['search_term'])
+        matching_scores_test = pd.DataFrame({
+                                                'matching_words':matching_words_test
+                                                 , 'tf_max_score':tf_max_score_test
+                                                 , 'tf_score_total':tf_max_score_test
+                                                 , 'matching_words_title':matching_words_title_test
+                                                 , 'tf_max_score_title':tf_max_score_title_test
+                                                 , 'tf_score_total_title':tf_max_score_title_test
+                                                 , 'matching_words_desc':matching_words_desc_test
+                                                 , 'tf_max_score_desc':tf_max_score_desc_test
+                                                 , 'tf_score_total_desc':tf_max_score_desc_test
+                                                 , 'matching_words_attr':matching_words_attr_test
+                                                 , 'tf_max_score_attr':tf_max_score_attr_test
+                                                 , 'tf_score_total_attr':tf_max_score_attr_test
+                                             }
+                                             , index = final_test.index)
+        matching_scores_test['matching_words_pct'] = matching_scores_test['matching_words'] \
+                                                        / countwords(final_test['search_term'])
+        matching_scores_test['matching_words_pct'] = matching_scores_test['matching_words'] \
+                                                        / countwords(final_test['search_term'])
+        matching_scores_test['matching_words_title_pct'] = matching_scores_test['matching_words_title'] \
+                                                        / countwords(final_test['search_term'])
+        matching_scores_test['matching_words_desc_pct'] = matching_scores_test['matching_words_desc'] \
+                                                        / countwords(final_test['search_term'])
+        matching_scores_test['matching_words_attr_pct'] = matching_scores_test['matching_words_attr'] \
+                                                        / countwords(final_test['search_term'])
 
-    ## add matching words count
-    logging.warn('Calculate matching words and TF scores')
-    # matching words overall
-    matching_words_train, matching_words_test = np.zeros(N), np.zeros(N2)
-    tf_max_score_train, tf_max_score_test = np.zeros(N), np.zeros(N2)
-    tf_score_total_train, tf_score_total_test = np.zeros(N), np.zeros(N2)
-    # matching words title
-    matching_words_title_train, matching_words_title_test = np.zeros(N), np.zeros(N2)
-    tf_max_score_title_train, tf_max_score_title_test = np.zeros(N), np.zeros(N2)
-    tf_score_total_title_train, tf_score_total_title_test = np.zeros(N), np.zeros(N2)
-    # matching words description
-    matching_words_desc_train, matching_words_desc_test = np.zeros(N), np.zeros(N2)
-    tf_max_score_desc_train, tf_max_score_desc_test = np.zeros(N), np.zeros(N2)
-    tf_score_total_desc_train, tf_score_total_desc_test = np.zeros(N), np.zeros(N2)
-    # matching words attributes
-    matching_words_attr_train, matching_words_attr_test = np.zeros(N), np.zeros(N2)
-    tf_max_score_attr_train, tf_max_score_attr_test = np.zeros(N), np.zeros(N2)
-    tf_score_total_attr_train, tf_score_total_attr_test = np.zeros(N), np.zeros(N2)
+        ## calculate further features
+        P = 100
 
-    for i in range(max(N,N2)):
-        if i<N:
-            # overall
-            matching_words_train[i] = np.sum(train_full_stvec[i,:].todense())
-            tf_max_score_train[i] = np.max(train_full_stvec_tf[i,:].todense())
-            tf_score_total_train[i] = np.sum(train_full_stvec_tf[i,:].todense())
-            # title
-            matching_words_title_train[i] = np.sum(train_full_stvec_title[i,:].todense())
-            tf_max_score_title_train[i] = np.max(train_full_stvec_tf_title[i,:].todense())
-            tf_score_total_title_train[i] = np.sum(train_full_stvec_tf_title[i,:].todense())
-            # description
-            matching_words_desc_train[i] = np.sum(train_full_stvec_desc[i,:].todense())
-            tf_max_score_desc_train[i] = np.max(train_full_stvec_tf_desc[i,:].todense())
-            tf_score_total_desc_train[i] = np.sum(train_full_stvec_tf_desc[i,:].todense())
-            # attributes
-            matching_words_attr_train[i] = np.sum(train_full_stvec_attr[i,:].todense())
-            tf_max_score_attr_train[i] = np.max(train_full_stvec_tf_attr[i,:].todense())
-            tf_score_total_attr_train[i] = np.sum(train_full_stvec_tf_attr[i,:].todense())
-        if i<N2:
-            # overall
-            matching_words_test[i] = np.sum(final_test_stvec[i,:].todense())
-            tf_max_score_test[i] = np.max(final_test_stvec_tf[i,:].todense())
-            tf_score_total_test[i] = np.sum(final_test_stvec_tf[i,:].todense())
-            # title
-            matching_words_title_test[i] = np.sum(final_test_stvec_title[i,:].todense())
-            tf_max_score_title_test[i] = np.max(final_test_stvec_tf_title[i,:].todense())
-            tf_score_total_title_test[i] = np.sum(final_test_stvec_tf_title[i,:].todense())
-            # description
-            matching_words_desc_test[i] = np.sum(final_test_stvec_desc[i,:].todense())
-            tf_max_score_desc_test[i] = np.max(final_test_stvec_tf_desc[i,:].todense())
-            tf_score_total_desc_test[i] = np.sum(final_test_stvec_tf_desc[i,:].todense())
-            # attributes
-            matching_words_attr_test[i] = np.sum(final_test_stvec_attr[i,:].todense())
-            tf_max_score_attr_test[i] = np.max(final_test_stvec_tf_attr[i,:].todense())
-            tf_score_total_attr_test[i] = np.sum(final_test_stvec_tf_attr[i,:].todense())
+        ## Decompose features into smaller subset
+        logging.warn('SVD of smaller search-term count vectors')
+        svd = TruncatedSVD(P)
+        cv, cvt = CountVectorizer(stop_words='english'), CountVectorizer(stop_words='english')
+        tf, tft = TfidfTransformer(), TfidfTransformer()
 
-    matching_scores_train = pd.DataFrame({
-                                            'matching_words':matching_words_train
-                                             , 'tf_max_score':tf_max_score_train
-                                             , 'tf_score_total':tf_max_score_train
-                                             , 'matching_words_title':matching_words_title_train
-                                             , 'tf_max_score_title':tf_max_score_title_train
-                                             , 'tf_score_total_title':tf_max_score_title_train
-                                             , 'matching_words_desc':matching_words_desc_train
-                                             , 'tf_max_score_desc':tf_max_score_desc_train
-                                             , 'tf_score_total_desc':tf_max_score_desc_train
-                                             , 'matching_words_attr':matching_words_attr_train
-                                             , 'tf_max_score_attr':tf_max_score_attr_train
-                                             , 'tf_score_total_attr':tf_max_score_attr_train
-                                          }
-                                          , index = train_full.index)
-    matching_scores_train['matching_words_pct'] = matching_scores_train['matching_words'] \
-                                                    / countwords(train_full['search_term'])
-    matching_scores_train['matching_words_title_pct'] = matching_scores_train['matching_words_title'] \
-                                                    / countwords(train_full['search_term'])
-    matching_scores_train['matching_words_desc_pct'] = matching_scores_train['matching_words_desc'] \
-                                                    / countwords(train_full['search_term'])
-    matching_scores_train['matching_words_attr_pct'] = matching_scores_train['matching_words_attr'] \
-                                                    / countwords(train_full['search_term'])
-    matching_scores_test = pd.DataFrame({
-                                            'matching_words':matching_words_test
-                                             , 'tf_max_score':tf_max_score_test
-                                             , 'tf_score_total':tf_max_score_test
-                                             , 'matching_words_title':matching_words_title_test
-                                             , 'tf_max_score_title':tf_max_score_title_test
-                                             , 'tf_score_total_title':tf_max_score_title_test
-                                             , 'matching_words_desc':matching_words_desc_test
-                                             , 'tf_max_score_desc':tf_max_score_desc_test
-                                             , 'tf_score_total_desc':tf_max_score_desc_test
-                                             , 'matching_words_attr':matching_words_attr_test
-                                             , 'tf_max_score_attr':tf_max_score_attr_test
-                                             , 'tf_score_total_attr':tf_max_score_attr_test
-                                         }
-                                         , index = final_test.index)
-    matching_scores_test['matching_words_pct'] = matching_scores_test['matching_words'] \
-                                                    / countwords(final_test['search_term'])
-    matching_scores_test['matching_words_pct'] = matching_scores_test['matching_words'] \
-                                                    / countwords(final_test['search_term'])
-    matching_scores_test['matching_words_title_pct'] = matching_scores_test['matching_words_title'] \
-                                                    / countwords(final_test['search_term'])
-    matching_scores_test['matching_words_desc_pct'] = matching_scores_test['matching_words_desc'] \
-                                                    / countwords(final_test['search_term'])
-    matching_scores_test['matching_words_attr_pct'] = matching_scores_test['matching_words_attr'] \
-                                                    / countwords(final_test['search_term'])
+        train_full_stvec = cv.fit_transform(train_full['search_term_original'])
+        final_test_stvec = cvt.fit_transform(final_test['search_term_original'])
+        train_full_stvec_tf = tf.fit_transform(train_full_stvec)
+        final_test_stvec_tf = tft.fit_transform(final_test_stvec)
+        matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cv.transform(train_full['product_title'].fillna('') \
+                                                                                        +' '+train_full['description_words'].fillna('') \
+                                                                                        +' '+train_full['attribute_words'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_train['matching_words_pct_original_title'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cv.transform(train_full['product_title'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_train['matching_words_pct_original_desc'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cv.transform(train_full['description_words'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_train['matching_words_pct_original_attr'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cv.transform(train_full['attribute_words'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cvt.transform(final_test['product_title'].fillna('') \
+                                                                                        +' '+final_test['description_words'].fillna('') \
+                                                                                        +' '+final_test['attribute_words'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_test['matching_words_pct_original_title'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cvt.transform(final_test['product_title'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_test['matching_words_pct_original_desc'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cvt.transform(final_test['description_words'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        matching_scores_test['matching_words_pct_original_attr'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                                / np.sum(cvt.transform(final_test['attribute_words'].fillna(''))\
+                                                                                        .todense(),axis=1)
+        train_full_vec_tf = tf.fit_transform(train_full_vec)
+        final_test_vec_tf = tf.transform(final_test_vec)
+        train_search_term_svd = svd.fit_transform(train_full_stvec)
+        train_search_term_svd = pd.DataFrame(train_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
+        train_search_term_svd.index = train_full.index
+        final_search_term_svd = svd.transform(cv.transform(final_test['search_term_original']))
+        final_search_term_svd = pd.DataFrame(final_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
+        final_search_term_svd.index = final_test.index
 
-    ## calculate further features
-    P = 100
+        # combined all datasets
+        logging.warn('Combining datasets')
+        train_full = pd.concat((train_full_distances
+                                , matching_scores_train
+                                , train_search_term_svd ), axis=1)
+        final_test = pd.concat((final_test_distances
+                                , matching_scores_test
+                                , final_search_term_svd ), axis=1)
 
-    ## Decompose features into smaller subset
-    logging.warn('SVD of smaller search-term count vectors')
-    svd = TruncatedSVD(P)
-    cv, cvt = CountVectorizer(stop_words='english'), CountVectorizer(stop_words='english')
-    tf, tft = TfidfTransformer(); TfidfTransformer()
-
-    train_full_stvec = cv.fit_transform(train_full['search_term_original'])
-    final_test_stvec = cvt.fit_transform(final_test['search_term_original'])
-    train_full_stvec_tf = tf.fit_transform(train_full_stvec)
-    final_test_stvec_tf = tft.fit_transform(final_test_stvec)
-    matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(train_full['product_title'].fillna('') \
-                                                                                    +' '+train_full['description_words'].fillna('') \
-                                                                                    +' '+train_full['attribute_words'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_train['matching_words_pct_original_title'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(train_full['product_title'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_train['matching_words_pct_original_desc'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(train_full['description_words'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_train['matching_words_pct_original_attr'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(train_full['attribute_words'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cvt.transform(final_test['product_title'].fillna('') \
-                                                                                    +' '+final_test['description_words'].fillna('') \
-                                                                                    +' '+final_test['attribute_words'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_test['matching_words_pct_original_title'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cvt.transform(final_test['product_title'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_test['matching_words_pct_original_desc'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cvt.transform(final_test['description_words'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    matching_scores_test['matching_words_pct_original_attr'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cvt.transform(final_test['attribute_words'].fillna(''))\
-                                                                                    .todense(),axis=1)
-    train_full_vec_tf = tf.fit_transform(train_full_vec)
-    final_test_vec_tf = tf.transform(final_test_vec)
-    train_search_term_svd = svd.fit_transform(train_full_stvec)
-    train_search_term_svd = pd.DataFrame(train_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
-    train_search_term_svd.index = train_full.index
-    final_search_term_svd = svd.transform(final_test_stvec)
-    final_search_term_svd = pd.DataFrame(final_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
-    final_search_term_svd.index = final_test.index
-
-    # combined all datasets
-    logging.warn('Combining datasets')
-    train_full = pd.concat((train_full_distances
-                            , matching_scores_train
-                            , train_search_term_svd ), axis=1)
-    final_test = pd.concat((final_test_distances
-                            , matching_scores_test
-                            , final_search_term_svd ), axis=1)
-
-    # save new training and test datasets
-    logging.warn('Save datasets to disk')
-    train_full.to_csv('Data/train_full_v2.csv',index=True)
-    final_test.to_csv('Data/final_test_v2.csv',index=True)
+        # save new training and test datasets
+        logging.warn('Save datasets to disk')
+        train_full.to_csv('Data/train_full_v2.csv',index=True)
+        final_test.to_csv('Data/final_test_v2.csv',index=True)
+    else:
+        train_full = pd.read_csv('Data/train_full_v2.csv',index_col=0)
+        final_test = pd.read_csv('Data/final_test_v2.csv',index_col=0)
 
 # ### Run forest model ##
 def forest_model(save_final_results=True, test=True):
@@ -573,7 +576,7 @@ def run():
     load_attributes(refresh=False)
 
     # combine datasets to final
-    combine_data()
+    combine_data(False)
 
     # run forest model
     forest_model(test=True, save_final_results=True)
