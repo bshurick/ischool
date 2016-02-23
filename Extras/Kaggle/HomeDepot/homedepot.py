@@ -501,11 +501,9 @@ def combine_data():
     logging.warn('Combining datasets')
     train_full = pd.concat((train_full_distances
                             , matching_scores_train
-                            , train_search_term_km
                             , train_search_term_svd ), axis=1)
     final_test = pd.concat((final_test_distances
                             , matching_scores_test
-                            , final_test_km
                             , final_search_term_svd ), axis=1)
 
     # save new training and test datasets
