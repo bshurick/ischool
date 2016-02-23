@@ -298,8 +298,9 @@ def combine_data():
     N2 = final_test_vec.shape[0]
     metrics = ['euclidean','cosine','chebyshev','np.dot'
                 ,'braycurtis','canberra','correlation','cityblock'
-                ,'hamming','dice','rogerstanimoto'
-                ,'sokalmichener','sokalsneath','sqeuclidean']
+                ,'hamming']
+                # ,'dice','rogerstanimoto'
+                # ,'sokalmichener','sokalsneath','sqeuclidean']
     distances_train = {}
     distances_test = {}
     for m in metrics:
@@ -459,14 +460,34 @@ def combine_data():
     final_test_stvec = cv.transform(final_test['search_term_original'])
     train_full_stvec_tf = tf.fit_transform(train_full_stvec)
     final_test_stvec_tf = tf.transform(final_test_stvec)
-    matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec,axis=1) \
-                                                            / np.sum(cv.transform(train_full['product_title'] \
-                                                                                    +' '+train_full['description_words'] \
-                                                                                    +' '+train_full['attribute_words']),axis=1)
-    matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec,axis=1) \
-                                                            / np.sum(cv.transform(final_test['product_title'] \
-                                                                                    +' '+final_test['description_words'] \
-                                                                                    +' '+final_test['attribute_words']),axis=1)
+    matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(train_full['product_title'].fillna('') \
+                                                                                    +' '+train_full['description_words'].fillna('') \
+                                                                                    +' '+train_full['attribute_words'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_train['matching_words_pct_original_title'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(train_full['product_title'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_train['matching_words_pct_original_desc'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(train_full['description_words'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_train['matching_words_pct_original_attr'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(train_full['attribute_words'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(final_test['product_title'].fillna('') \
+                                                                                    +' '+final_test['description_words'].fillna('') \
+                                                                                    +' '+final_test['attribute_words'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_test['matching_words_pct_original_title'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(final_test['product_title'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_test['matching_words_pct_original_desc'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(final_test['description_words'].fillna(''))\
+                                                                                    .todense(),axis=1)
+    matching_scores_test['matching_words_pct_original_attr'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
+                                                            / np.sum(cv.transform(final_test['attribute_words'].fillna(''))\
+                                                                                    .todense(),axis=1)
     train_full_vec_tf = tf.fit_transform(train_full_vec)
     final_test_vec_tf = tf.transform(final_test_vec)
     train_search_term_svd = svd.fit_transform(train_full_stvec)
