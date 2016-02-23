@@ -453,13 +453,13 @@ def combine_data():
     ## Decompose features into smaller subset
     logging.warn('SVD of smaller search-term count vectors')
     svd = TruncatedSVD(P)
-    cv = CountVectorizer(stop_words='english')
-    tf = TfidfTransformer()
+    cv, cvt = CountVectorizer(stop_words='english'), CountVectorizer(stop_words='english')
+    tf, tft = TfidfTransformer(); TfidfTransformer()
 
     train_full_stvec = cv.fit_transform(train_full['search_term_original'])
-    final_test_stvec = cv.transform(final_test['search_term_original'])
+    final_test_stvec = cvt.fit_transform(final_test['search_term_original'])
     train_full_stvec_tf = tf.fit_transform(train_full_stvec)
-    final_test_stvec_tf = tf.transform(final_test_stvec)
+    final_test_stvec_tf = tft.fit_transform(final_test_stvec)
     matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
                                                             / np.sum(cv.transform(train_full['product_title'].fillna('') \
                                                                                     +' '+train_full['description_words'].fillna('') \
@@ -475,18 +475,18 @@ def combine_data():
                                                             / np.sum(cv.transform(train_full['attribute_words'].fillna(''))\
                                                                                     .todense(),axis=1)
     matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(final_test['product_title'].fillna('') \
+                                                            / np.sum(cvt.transform(final_test['product_title'].fillna('') \
                                                                                     +' '+final_test['description_words'].fillna('') \
                                                                                     +' '+final_test['attribute_words'].fillna(''))\
                                                                                     .todense(),axis=1)
     matching_scores_test['matching_words_pct_original_title'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(final_test['product_title'].fillna(''))\
+                                                            / np.sum(cvt.transform(final_test['product_title'].fillna(''))\
                                                                                     .todense(),axis=1)
     matching_scores_test['matching_words_pct_original_desc'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(final_test['description_words'].fillna(''))\
+                                                            / np.sum(cvt.transform(final_test['description_words'].fillna(''))\
                                                                                     .todense(),axis=1)
     matching_scores_test['matching_words_pct_original_attr'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                            / np.sum(cv.transform(final_test['attribute_words'].fillna(''))\
+                                                            / np.sum(cvt.transform(final_test['attribute_words'].fillna(''))\
                                                                                     .todense(),axis=1)
     train_full_vec_tf = tf.fit_transform(train_full_vec)
     final_test_vec_tf = tf.transform(final_test_vec)
