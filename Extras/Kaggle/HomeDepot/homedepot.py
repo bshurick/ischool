@@ -217,9 +217,9 @@ def combine_data(refresh=True):
         train_full['search_term_original'] = train_full['search_term']
         final_test['search_term_original'] = final_test['search_term']
         train_full['search_term'] = findwords(train_full['search_term'])
-        train_full['search_term'] = getstems(synonym_text(train_full['search_term']))
+        train_full['search_term'] = getstems(train_full['search_term'])
         final_test['search_term'] = findwords(final_test['search_term'])
-        final_test['search_term'] = getstems(synonym_text(final_test['search_term']))
+        final_test['search_term'] = getstems(final_test['search_term'])
 
         ## Set ID's back and save data to disk
         train_full.index = train_full['id']
@@ -299,8 +299,6 @@ def combine_data(refresh=True):
         metrics = ['euclidean','cosine','chebyshev','np.dot'
                     ,'braycurtis','canberra','correlation','cityblock'
                     ,'hamming']
-                    # ,'dice','rogerstanimoto'
-                    # ,'sokalmichener','sokalsneath','sqeuclidean']
         distances_train = {}
         distances_test = {}
         for m in metrics:
@@ -453,47 +451,17 @@ def combine_data(refresh=True):
         ## Decompose features into smaller subset
         logging.warn('SVD of smaller search-term count vectors')
         svd = TruncatedSVD(P)
-        cv, cvt = CountVectorizer(stop_words='english'), CountVectorizer(stop_words='english')
-        tf, tft = TfidfTransformer(), TfidfTransformer()
+        cv = CountVectorizer(stop_words='english')
+        tf = TfidfTransformer()
 
         train_full_stvec = cv.fit_transform(train_full['search_term_original'])
-        final_test_stvec = cvt.fit_transform(final_test['search_term_original'])
-        train_full_stvec_tf = tf.fit_transform(train_full_stvec)
-        final_test_stvec_tf = tft.fit_transform(final_test_stvec)
-        matching_scores_train['matching_words_pct_original'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cv.transform(train_full['product_title'].fillna('') \
-                                                                                        +' '+train_full['description_words'].fillna('') \
-                                                                                        +' '+train_full['attribute_words'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_train['matching_words_pct_original_title'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cv.transform(train_full['product_title'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_train['matching_words_pct_original_desc'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cv.transform(train_full['description_words'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_train['matching_words_pct_original_attr'] = np.sum(train_full_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cv.transform(train_full['attribute_words'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_test['matching_words_pct_original'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cvt.transform(final_test['product_title'].fillna('') \
-                                                                                        +' '+final_test['description_words'].fillna('') \
-                                                                                        +' '+final_test['attribute_words'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_test['matching_words_pct_original_title'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cvt.transform(final_test['product_title'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_test['matching_words_pct_original_desc'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cvt.transform(final_test['description_words'].fillna(''))\
-                                                                                        .todense(),axis=1)
-        matching_scores_test['matching_words_pct_original_attr'] = np.sum(final_test_stvec.todense(),axis=1)*1. \
-                                                                / np.sum(cvt.transform(final_test['attribute_words'].fillna(''))\
-                                                                                        .todense(),axis=1)
+        final_test_stvec = cv.fit_transform(final_test['search_term_original'])
         train_full_vec_tf = tf.fit_transform(train_full_vec)
         final_test_vec_tf = tf.transform(final_test_vec)
         train_search_term_svd = svd.fit_transform(train_full_stvec)
         train_search_term_svd = pd.DataFrame(train_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
         train_search_term_svd.index = train_full.index
-        final_search_term_svd = svd.transform(cv.transform(final_test['search_term_original']))
+        final_search_term_svd = svd.transform(final_test_stvec)
         final_search_term_svd = pd.DataFrame(final_search_term_svd,columns=['svd_'+str(i) for i in range(P)])
         final_search_term_svd.index = final_test.index
 
@@ -525,17 +493,21 @@ def forest_model(save_final_results=True, test=True):
 
     logging.warn('Create boosted trees model with training data')
     ## Encode categories ##
+    X[X==np.inf] = np.nan
     im = Imputer(strategy='median')
-    X = im.fit_transform(np.matrix(train_full))
+    X = np.array(train_full)
+    X[X==np.inf] = np.nan
+    X = im.fit_transform(X)
     Y = np.array(target_full[TARGET_COLUMN]).ravel()
-    X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
-                                                      X \
-                                                      , Y \
-                                                      , test_size=TEST_SIZE \
-                                                      , random_state=0)
+
     rfr = RandomForestRegressor(**PARAMS)
     if test:
         logging.warn('Test prediction accuracy')
+        X_train, X_test, Y_train, Y_test = cross_validation.train_test_split( \
+                                                          X \
+                                                          , Y \
+                                                          , test_size=TEST_SIZE \
+                                                          , random_state=0)
         rfr.fit(X_train , Y_train)
         p_pred = rfr.predict(X_test)
         logging.warn('RMSE: '+str(np.sqrt(np.mean((p_pred-Y_test)**2))))
@@ -546,7 +518,9 @@ def forest_model(save_final_results=True, test=True):
             NOTE: sorting is not done here
         '''
         rfr.fit(X , Y)
-        X = im.transform(np.matrix(final_test))
+        X = np.array(final_test)
+        X[X==np.inf] = np.nan
+        X = im.fit_transform(X)
         f_pred = rfr.predict(X)
 
 def write_submission():
@@ -576,7 +550,7 @@ def run():
     load_attributes(refresh=False)
 
     # combine datasets to final
-    combine_data(False)
+    combine_data(refresh=True)
 
     # run forest model
     forest_model(test=True, save_final_results=True)
