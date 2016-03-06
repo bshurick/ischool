@@ -1,0 +1,226 @@
+-------------------
+V1.Final 02/25/2015
+-------------------
+
+===========================================================================
+===MIDS UC Berkeley, Machine Learning at Scale DATSCI W261 ASSIGNMENT #7===
+
+=========================
+SPECIAL INSTURCTIONS
+ This weeks homework is a group exercise. Your team assignments for completing this HW are located at:
+
+https://docs.google.com/spreadsheets/d/1ncFQl5Tovn-16slD8mYjP_nzMTPSfiGeLLzW8v_sMjg/edit?usp=sharing
+
+See column Team assignment for Homeworks in tab "Teams for HW Assignments"
+
+Please submit your homeworks (one per team) going forward via this form (and not thru the ISVC):
+
+https://docs.google.com/forms/d/1ZOr9RnIe_A06AcZDB6K1mJN4vrLeSmS2PD6Xm3eOiis/viewform?usp=send_form
+
+Please follow the instructions for submissions carefully.
+
+Note that all referenced files life in the enclosing directory (checkout the Data subdirectory on Dropbox). 
+
+===General Description===
+In this assignment you will explore networks and develop MRJob code for 
+finding shortest path graph distances. To build up to large data 
+you will develop your code on some very simple, toy networks.
+After this you will take your developed code forward and modify it and 
+apply it to two larger datasets (performing EDA along the way).
+
+==================================
+==Undirected toy network dataset==
+
+In an undirected network all links are symmetric, 
+i.e., for a pair of nodes 'A' and 'B,' both of the links:
+
+A -> B and B -> A
+
+will exist. 
+
+The toy data are available in a sparse (stripes) representation:
+
+(node) \t (dictionary of links)
+
+on AWS/Dropbox via the url:
+
+s3://ucb-mids-mls-networks/undirected_toy.txt
+On under the Data Subfolder for HW7 on Dropbox with the same file name. 
+The Data folder is in: https://db.tt/Kxu48mL1)
+
+In the dictionary, target nodes are keys, link weights are values 
+(here, all weights are 1, i.e., the network is unweighted).
+
+================================
+==Directed toy network dataset==
+
+In a directed network all links are not necessarily symmetric, 
+i.e., for a pair of nodes 'A' and 'B,' it is possible for only one of:
+
+A -> B or B -> A
+
+to exist. 
+
+These toy data are available in a sparse (stripes) representation:
+
+(node) \t (dictionary of links)
+
+on AWS/Dropbox via the url:
+
+s3://ucb-mids-mls-networks/directed_toy.txt
+On under the Data Subfolder for HW7 on Dropbox with the same file name
+
+In the dictionary, target nodes are keys, link weights are values 
+(here, all weights are 1, i.e., the network is unweighted).
+
+==========================================================
+===HW 7.0: Shortest path graph distances (toy networks)===
+
+In this part of your assignment you will develop the base of your code for the week.
+
+Write MRJob classes to find shortest path graph distances, 
+as described in the lectures. In addition to finding the distances, 
+your code should also output a distance-minimizing path between the source and target.
+Work locally for this part of the assignment, and use 
+both of the undirected and directed toy networks.
+
+To proof you code's function, run the following jobs
+
+- shortest path in the undirected network from node 1 to node 4
+Solution: 1,5,4 
+
+- shortest path in the directed network from node 1 to node 5
+Solution: 1,2,4,5
+
+and report your output---make sure it is correct!
+
+=================================
+==Main dataset 1: NLTK synonyms==
+
+In the next part of this assignment you will explore a network derived from
+the NLTK synonym database used for evaluation in HW 5. At a high level, this
+network is undirected, defined so that there exists link between two nodes/words 
+if the pair or words are a synonym. These data may be found at the location:
+
+s3://ucb-mids-mls-networks/synNet/synNet.txt
+s3://ucb-mids-mls-networks/synNet/indices.txt
+On under the Data Subfolder for HW7 on Dropbox with the same file names
+
+where synNet.txt contains a sparse representation of the network:
+
+(index) \t (dictionary of links)
+
+in indexed form, and indices.txt contains a lookup list
+
+(word) \t (index)
+
+of indices and words. This network is small enough for you to explore and run
+scripts locally, but will also be good for a systems test (for later) on AWS.
+
+In the dictionary, target nodes are keys, link weights are values 
+(here, all weights are 1, i.e., the network is unweighted).
+
+=======================================================
+===HW 7.1: Exploratory data analysis (NLTK synonyms)===
+
+Using MRJob, explore the synonyms network data.
+Consider plotting the degree distribution (does it follow a power law?),
+and determine some of the key features, like:
+
+number of nodes, 
+number links,
+or the average degree (i.e., the average number of links per node),
+etc...
+
+As you develop your code, please be sure to run it locally first (though on the whole dataset). 
+Once you have gotten you code to run locally, deploy it on AWS as a systems test
+in preparation for our next dataset (which will require AWS).
+
+===========================================================
+===HW 7.2: Shortest path graph distances (NLTK synonyms)===
+
+Write (reuse your code from 7.0) an MRJob class to find shortest path graph distances, 
+and apply it to the NLTK synonyms network dataset. 
+
+Proof your code's function by running the job:
+
+- shortest path starting at "walk" (index=7827) and ending at "make" (index=536),
+
+and showing you code's output. Once again, your output should include the path and the distance.
+
+As you develop your code, please be sure to run it locally first (though on the whole dataset). 
+Once you have gotten you code to run locally, deploy it on AWS as a systems test
+in preparation for our next dataset (which will require AWS).
+
+=====================================
+==Main dataset 2: English Wikipedia==
+
+For the remainder of this assignment you will explore the English Wikipedia hyperlink network.
+The dataset is built from the Sept. 2015 XML snapshot of English Wikipedia.
+For this directed network, a link between articles: 
+
+A -> B
+
+is defined by the existence of a hyperlink in A pointing to B.
+This network also exists in the indexed format:
+
+Data: s3://ucb-mids-mls-networks/wikipedia/all-pages-indexed-out.txt
+Data: s3://ucb-mids-mls-networks/wikipedia/all-pages-indexed-in.txt
+Data: s3://ucb-mids-mls-networks/wikipedia/indices.txt
+On under the Data Subfolder for HW7 on Dropbox with the same file names
+
+but has an index with more detailed data:
+
+(article name) \t (index) \t (in degree) \t (out degree)
+
+In the dictionary, target nodes are keys, link weights are values .
+Here, a weight indicates the number of time a page links to another.
+However, for the sake of this assignment, treat this an unweighted network,
+and set all weights to 1 upon data input.
+
+===================================================
+===HW 7.3: Exploratory data analysis (Wikipedia)===
+
+Using MRJob, explore the Wikipedia network data on the AWS cloud. Reuse your code from HW 7.1---does is scale well? 
+Be cautioned that Wikipedia is a directed network, where links are not symmetric. 
+So, even though a node may be linked to, it will not appear as a primary record itself if it has no out-links. 
+This means that you may have to ADJUST your code (depending on its design). 
+To be sure of your code's functionality in this context, run a systems test on the directed_toy.txt network.
+
+=======================================================
+===HW 7.4: Shortest path graph distances (Wikipedia)===
+
+Using MRJob, find shortest path graph distances in the Wikipedia network on the AWS cloud.
+Reuse your code from 7.2, but once again be warned of Wikipedia being a directed network.
+To be sure of your code's functionality in this context, run a systems test on the directed_toy.txt network.
+
+When running your code on the Wikipedia network, proof its function by running the job:
+
+- shortest path from "Ireland" (index=6176135) to "University of California, Berkeley" (index=13466359),
+
+and show your code's output.
+
+Once your code is running, find some other shortest paths and report your results.
+
+==========================================================================
+===HW 7.5: Conceptual exercise: Largest single-source network distances===
+
+Suppose you wanted to find the largest network distance from a single source,
+i.e., a node that is the furthest (but still reachable) from a single source.
+
+How would you implement this task? 
+How is this different from finding the shortest path graph distances?
+
+Is this task more difficult to implement than the shortest path distance?
+
+As you respond, please comment on program structure, runtimes, iterations, general system requirements, etc...
+
+========================================================================================
+OPTIONAL
+===HW 7.6: Computational exercise: Largest single-source network distances (optional)===
+
+Using MRJob, write a code to find the largest graph distance and distance-maximizing nodes from a single-source.
+Test your code first on the toy networks and synonyms network to proof its function.
+
+==================END HW 7==================
+============================================
