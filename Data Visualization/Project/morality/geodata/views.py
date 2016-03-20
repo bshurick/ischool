@@ -32,6 +32,18 @@ KEY = {
    , 'Refused':'refused'
 }
 
+def do_grouping(matches):
+	output = {}
+	groups = [ (k[0],list(g)) for k, g in groupby(matches) ]
+	for g in groups:
+	    if g[0] not in output:
+		output[g[0]] = {}
+	    for v in g[1]:
+		if v[1] not in output[g[0]]:
+		    output[g[0]][v[1]] = 0 
+		output[g[0]][v[1]] += 1
+	return output
+
 def geodata(request):
 	question = request.GET.get('question')
 	output = {}
@@ -41,14 +53,7 @@ def geodata(request):
                         , KEY[DPES11_DICT[int(float(m.i_develop_strong_emotions_toward_people_i_can_rely_on))]])
                         for m in Survey.objects.all()
                 ])
-		groups = [ (k[0],list(g)) for k, g in groupby(matches) ]
-		for g in groups:
-    			if g[0] not in output:
-        			output[g[0]] = {}
-    			for v in g[1]:
-        			if v[1] not in output[g[0]]:
-            				output[g[0]][v[1]] = 0 
-        			output[g[0]][v[1]] += 1
+		output = do_grouping(matches)
 	elif question == '2':
 		matches = {}
 	elif question == '3':
