@@ -47,6 +47,27 @@ def do_grouping(matches):
 
 def add_fillkey(output):
 	''' add a fillkey attribute for top response '''
+	for s in output:
+		m = max(output[s].values())
+		v = sorted([ k for k in output[s] if output[s][k]==m])
+		if 'stronglyAgree' in v:
+			output[s]['fillkey'] = 'stronglyAgree'
+		elif 'agree' in v:
+			output[s]['fillkey'] = 'agree'
+		elif 'somewhatAgree' in v:
+			output[s]['fillkey'] = 'somewhatAgree'
+		elif 'neitherAgreeNorDisagree' in v:
+			output[s]['fillkey'] = 'neitherAgreeNorDisagree'
+		elif 'somewhatDisagree' in v:
+			output[s]['fillkey'] = 'somewhatDisagree'
+		elif 'disagree' in v:
+			output[s]['fillkey'] = 'disagree'
+		elif 'stronglyDisagree' in v:
+			output[s]['fillkey'] = 'stronglyDisagree'
+		elif 'refused' in v:
+			output[s]['fillkey'] = 'refused'
+		else:
+			output[s]['fillkey'] = 'unknown'
 	return output
 
 def geodata(request):
