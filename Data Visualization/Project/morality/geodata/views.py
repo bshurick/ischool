@@ -33,6 +33,7 @@ KEY = {
 }
 
 def do_grouping(matches):
+	''' group together responses for each state '''
 	output = {}
 	groups = [ (k[0],list(g)) for k, g in groupby(matches) ]
 	for g in groups:
@@ -42,6 +43,10 @@ def do_grouping(matches):
 		if v[1] not in output[g[0]]:
 		    output[g[0]][v[1]] = 0 
 		output[g[0]][v[1]] += 1
+	return output
+
+def add_fillkey(output):
+	''' add a fillkey attribute for top response '''
 	return output
 
 def geodata(request):
@@ -68,5 +73,6 @@ def geodata(request):
 	else: 
 		raise Exception('Question needs to be 1-3')
 	output = do_grouping(matches)
+	output = add_fillkey(output)
 	return HttpResponse(json.dumps(output),content_type='application/json')
 
