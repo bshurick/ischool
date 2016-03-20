@@ -53,11 +53,20 @@ def geodata(request):
                         , KEY[DPES11_DICT[int(float(m.i_develop_strong_emotions_toward_people_i_can_rely_on))]])
                         for m in Survey.objects.all()
                 ])
-		output = do_grouping(matches)
 	elif question == '2':
-		matches = {}
+		matches = sorted([
+                        (m.state
+                        , KEY[DPES11_DICT[int(float(m.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams))]])
+                        for m in Survey.objects.all()
+                ])
 	elif question == '3':
-		matches = {}
+		matches = sorted([
+                        (m.state
+                        , KEY[EPQ1_DICT[int(float(m.moral_standards_should_be_seen_as_individualistic_what_one_person_considers_to_be_moral_may_be_judged_as_immoral_by_another_person))]])
+                        for m in Survey.objects.all()
+                ])
 	else: 
 		raise Exception('Question needs to be 1-3')
+	output = do_grouping(matches)
 	return HttpResponse(json.dumps(output),content_type='application/json')
+
