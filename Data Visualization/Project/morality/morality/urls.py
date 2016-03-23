@@ -18,4 +18,5 @@ from django.contrib import admin
 
 urlpatterns = [
     url(r'^geodata/', include('geodata.urls')),
+    url(r'^survey/', include('surveys.urls')),
 ]

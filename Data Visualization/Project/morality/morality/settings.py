@@ -27,7 +27,6 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -55,10 +54,14 @@ MIDDLEWARE_CLASSES = [
 
 ROOT_URLCONF = 'morality.urls'
 
+PROJECT_PATH = os.path.realpath(os.path.dirname(__file__))
+
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [ 
+		'templates', 
+	],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
