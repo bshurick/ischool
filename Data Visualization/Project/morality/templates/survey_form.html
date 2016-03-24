@@ -1,11 +1,38 @@
 
 {% extends "base.html" %}
-{% load staticfiles %}
 
 {% block main %}
-<form action="/your-name/" method="post">
+<form action="/survey/" method="post">
     {% csrf_token %}
-    {{ form }}
+
+	{{ form.non_field_errors }}
+	<div class="form-group">
+		{{ form.state.errors }}
+		<label for="{{ form.state.id_for_label }}">State: </label>
+		{{ form.state }}
+	</div>
+	
+	{{ form.non_field_errors }}
+	<div class="form-group">
+		{{ form.gender.errors }}
+		<label for="{{ form.gender.id_for_label }}">Gender: </label>
+		{{ form.gender }}
+	</div>
+  	
+	{{ form.non_field_errors }}
+	<div class="form-group">
+		{{ form.i_develop_strong_emotions_toward_people_i_can_rely_on.errors }}
+		<label for="{{ form.i_develop_strong_emotions_toward_people_i_can_rely_on.id_for_label }}">I develop strong emotions toward people I can rely on: </label>
+		{{ form.i_develop_strong_emotions_toward_people_i_can_rely_on }}
+	</div>
+	 
+	{{ form.non_field_errors }}
+	<div class="form-group">
+		{{ form.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams.errors }}
+		<label for="{{ form.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams.id_for_label }}">Parents should empower children as much as possible so that they may follow their dreams: </label>
+		{{ form.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams }}
+	</div>
+	
     <input class="btn btn-default" type="submit" value="Submit" />
 </form>
 
