@@ -2,6 +2,16 @@
 {% extends "base.html" %}
 
 {% block main %}
+
+<div class="row">
+<div class="col-xs-12 col-md-offset-2 col-md-8">
+
+<div class="panel panel-default">
+  <div class="panel-body">
+    <h2>Please fill out our survey to add your perspective.</h2>
+</div>
+</div>
+
 <form action="/survey/" method="post">
     {% csrf_token %}
 
@@ -35,5 +45,8 @@
 	
     <input class="btn btn-default" type="submit" value="Submit" />
 </form>
+
+</div> <!-- row -->
+</div> <!-- col -->
 
 {% endblock %}
