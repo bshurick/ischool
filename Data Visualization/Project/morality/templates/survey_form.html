@@ -14,7 +14,7 @@
 
 <form action="/survey/" method="post">
     {% csrf_token %}
-
+	{{ form.errors }}
 	{{ form.non_field_errors }}
 	<div class="form-group">
 		<label for="{{ form.state.id_for_label }}">State: </label>
@@ -41,6 +41,13 @@
 		<label for="{{ form.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams.id_for_label }}">Parents should empower children as much as possible so that they may follow their dreams: </label>
 		{{ form.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams }}
 		{{ form.parents_should_empower_children_as_much_as_possible_so_that_they_may_follow_their_dreams.errors }}
+	</div>
+	
+	{{ form.non_field_errors }}
+	<div class="form-group">
+		<label for="{{ form.moral_standards_should_be_seen_as_individualistic_what_one_person_considers_to_be_moral_may_be_judged_as_immoral_by_another_person.id_for_label }}">Moral standards should be seen as individualistic - <br/>What one person considers to be moral may be judged as immoral by another person: </label>
+		{{ form.moral_standards_should_be_seen_as_individualistic_what_one_person_considers_to_be_moral_may_be_judged_as_immoral_by_another_person }}
+		{{ form.moral_standards_should_be_seen_as_individualistic_what_one_person_considers_to_be_moral_may_be_judged_as_immoral_by_another_person.errors }}
 	</div>
 	
     <input class="btn btn-default" type="submit" value="Submit" />
