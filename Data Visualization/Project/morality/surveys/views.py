@@ -1,4 +1,4 @@
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import render
 from django.template import loader
 
@@ -10,6 +10,7 @@ def survey(request):
 		f = SurveyForm(request.POST)
 		if f.is_valid():
 			f.save()
+			return HttpResponseRedirect('/')
 	else:
 		f = SurveyForm()
 	tmp = loader.get_template('survey_form.html')

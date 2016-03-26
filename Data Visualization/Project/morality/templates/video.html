@@ -2,13 +2,21 @@
 
 {% block test_video %}
 
+<div class="row">
+<div class="col-xs-12 col-md-offset-2 col-md-8">
+
 <p class="lead">
 To participate in our morality research, watch 
 the below video and answer our survey questions. 
 </p>
+
 <p>When you return from the survey, your data will  
 automatically fill our visualizations below.</p>
 {{ video|safe }}
-<br/><br/>
-<button class='btn btn-primary'>Go to survey</button>
+<br/>
+<a href="{% url 'surveys:survey' %}" class='btn btn-primary'>Go to survey</a>
+
+</div> <!-- col -->
+</div> <!-- row -->
+
 {% endblock %}

@@ -6,15 +6,13 @@
 <div class="row">
 <div class="col-xs-12 col-md-offset-2 col-md-8">
 
-<div class="panel panel-default">
-  <div class="panel-body">
-    <h2>Please fill out our survey to add your perspective.</h2>
-</div>
-</div>
+<p class="lead">
+Please fill out our survey to add your perspective.
+</p>
 
 <form action="/survey/" method="post">
     {% csrf_token %}
-	{{ form.errors }}
+	
 	{{ form.non_field_errors }}
 	<div class="form-group">
 		<label for="{{ form.state.id_for_label }}">State: </label>
@@ -51,6 +49,7 @@
 	</div>
 	
     <input class="btn btn-default" type="submit" value="Submit" />
+    <a href="{% url 'main:index' %}" class='btn btn-default'>Back</a>
 </form>
 
 </div> <!-- row -->
