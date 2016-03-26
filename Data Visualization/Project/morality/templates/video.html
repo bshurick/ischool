@@ -1,0 +1,14 @@
+{% extends "index.html" %}
+
+{% block test_video %}
+
+<p class="lead">
+To participate in our morality research, watch 
+the below video and answer our survey questions. 
+</p>
+<p>When you return from the survey, your data will  
+automatically fill our visualizations below.</p>
+{{ video|safe }}
+<br/><br/>
+<button class='btn btn-primary'>Go to survey</button>
+{% endblock %}
