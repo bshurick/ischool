@@ -28,7 +28,7 @@ var resultmap_q1 = new Datamap({
   'Strongly disagree': '#E37B47',
   'Refused ': '#B6B6B4',     
   defaultFill: '#B6B6B4'
-},data:{{ map1data }} 
+},data:{{ map1data|safe }} 
 });
 resultmap_q1.labels();
 
@@ -62,7 +62,7 @@ var resultmap_q2 = new Datamap({
   'Strongly disagree': '#E37B47',
   'Refused ': '#B6B6B4',     
   defaultFill: '#B6B6B4'
-},data: {{ map2data }}
+},data: {{ map2data|safe }}
 });
 resultmap_q2.labels();
 
@@ -96,7 +96,7 @@ var resultmap_q3 = new Datamap({
   'Strongly disagree': '#E37B47',
   'Refused ': '#B6B6B4',     
   defaultFill: '#B6B6B4'
-}, data:{{ map3data }}
+}, data:{{ map3data|safe }}
 });
 resultmap_q3.labels();
 

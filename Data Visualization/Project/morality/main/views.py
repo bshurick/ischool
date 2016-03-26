@@ -2,7 +2,8 @@ from django.http import HttpResponse
 from django.shortcuts import render
 from django.template import loader
 
-import random
+import random, requests
+from geodata.views import get_geodata
 
 def index(request):
 	videos = {
@@ -29,7 +30,9 @@ def index(request):
 	c = {
 		'video':video
 		,'watched_video':watched_video
-
+		,'map1data':get_geodata(1)
+		,'map2data':get_geodata(2)
+		,'map3data':get_geodata(3)
 	}
 	return HttpResponse(tmp.render(c,request))
 
