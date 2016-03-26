@@ -7,7 +7,10 @@ from .forms import SurveyForm
 
 def survey(request):
 	if request.method == 'POST':
-		f = SurveyForm(request.POST)
+		video = request.session.get('video')
+		postdata = request.POST.copy()
+		postdata['video_choice'] = video
+		f = SurveyForm(postdata)
 		if f.is_valid():
 			f.save()
 			return HttpResponseRedirect('/')

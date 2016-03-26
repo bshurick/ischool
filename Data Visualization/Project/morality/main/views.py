@@ -10,10 +10,12 @@ def index(request):
 		video = ''' 
 			<iframe width="600" height="315" src="https://www.youtube.com/embed/2DN0IRoMf4k" frameborder="0" allowfullscreen></iframe> 
 		'''
+		request.session['video'] = 'control'
 	else:
 		video = ''' 
 			<iframe width="600" height="315" src="https://www.youtube.com/embed/V6-0kYhqoRo" frameborder="0" allowfullscreen></iframe>
 		'''
+		request.session['video'] = 'test'
 	tmp = loader.get_template('video.html')
 	return HttpResponse(tmp.render({'video':video}, request))
 
