@@ -51,23 +51,23 @@ def add_fillkey(output):
 		m = max(output[s].values())
 		v = sorted([ k for k in output[s] if output[s][k]==m])
 		if 'stronglyAgree' in v:
-			output[s]['fillkey'] = 'stronglyAgree'
+			output[s]['fillKey'] = 'stronglyAgree'
 		elif 'agree' in v:
-			output[s]['fillkey'] = 'agree'
+			output[s]['fillKey'] = 'agree'
 		elif 'somewhatAgree' in v:
-			output[s]['fillkey'] = 'somewhatAgree'
+			output[s]['fillKey'] = 'somewhatAgree'
 		elif 'neitherAgreeNorDisagree' in v:
-			output[s]['fillkey'] = 'neitherAgreeNorDisagree'
+			output[s]['fillKey'] = 'neitherAgreeNorDisagree'
 		elif 'somewhatDisagree' in v:
-			output[s]['fillkey'] = 'somewhatDisagree'
+			output[s]['fillKey'] = 'somewhatDisagree'
 		elif 'disagree' in v:
-			output[s]['fillkey'] = 'disagree'
+			output[s]['fillKey'] = 'disagree'
 		elif 'stronglyDisagree' in v:
-			output[s]['fillkey'] = 'stronglyDisagree'
+			output[s]['fillKey'] = 'stronglyDisagree'
 		elif 'refused' in v:
-			output[s]['fillkey'] = 'refused'
+			output[s]['fillKey'] = 'refused'
 		else:
-			output[s]['fillkey'] = 'unknown'
+			output[s]['fillKey'] = 'unknown'
 	return output
 
 def get_geodata(question):
