@@ -97,6 +97,31 @@ def get_geodata(question):
         output = add_fillkey(output)
 	return output
 
+def get_fillkey():
+	colors = {
+		'sa':'#2BC0E8'
+		, 'a':'#3780E8'
+		, 'swa':'#4573E8'
+		, 'nad':'#7893E8'
+		, 'swd':'#A57FE8'
+		, 'd':'#8D39E8'
+		, 'sd':'#F448FF'
+		, 'r':'#B6B6B4'
+		, 'def':'#B6B6B4'
+	}
+	FILLKEY = '''
+	  'stronglyAgree': '{sa}',
+	  'agree': '{a}',
+	  'somewhatAgree': '{swa}',
+	  'neitherAgreeNorDisagree': '{nad}',
+	  'somewhatDisagree': '{swd}',
+	  'disagree': '{d}',
+	  'stronglyDisagree': '{sd}',
+	  'refused ': '{r}',
+	  defaultFill: '{def}'
+	'''.format(**colors)
+	return FILLKEY
+
 def geodata(request):
 	question = request.GET.get('question')
 	output = get_geodata(question)

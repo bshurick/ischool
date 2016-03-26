@@ -27,15 +27,7 @@ var resultmap_q1 = new Datamap({
   },
 
   fills: {
-  'stronglyAgree': '#5BC3F7',
-  'agree': '#51B9ED',
-  'somewhatAgree': '#5185ED',
-  'neitherAgreeNorDisagree': '#6B51ED',
-  'somewhatDisagree': '#FFD5A1',
-  'disagree': '#FFC18D', 
-  'stronglyDisagree': '#E37B47',
-  'refused ': '#B6B6B4',     
-  defaultFill: '#B6B6B4'
+    {{ fillkey|safe }}
 },data:{{ map1data|safe }} 
 });
 resultmap_q1.labels();
@@ -60,16 +52,8 @@ var resultmap_q2 = new Datamap({
     highlightBorderWidth: 3
   },
   fills: {
-  'stronglyAgree': '#5BC3F7',
-  'agree': '#51B9ED',
-  'somewhatAgree': '#5185ED',
-  'neitherAgreeNorDisagree': '#6B51ED',
-  'somewhatDisagree': '#FFD5A1',
-  'disagree': '#FFC18D',
-  'stronglyDisagree': '#E37B47',
-  'refused ': '#B6B6B4',
-  defaultFill: '#B6B6B4'
-  },data: {{ map2data|safe }}
+	{{ fillkey|safe }}
+    },data: {{ map2data|safe }}
 });
 resultmap_q2.labels();
 
@@ -94,16 +78,8 @@ var resultmap_q3 = new Datamap({
   },
 
    fills: {
-  'stronglyAgree': '#5BC3F7',
-  'agree': '#51B9ED',
-  'somewhatAgree': '#5185ED',
-  'neitherAgreeNorDisagree': '#6B51ED',
-  'somewhatDisagree': '#FFD5A1',
-  'disagree': '#FFC18D',
-  'stronglyDisagree': '#E37B47',
-  'refused ': '#B6B6B4',
-  defaultFill: '#B6B6B4'
-  }, data:{{ map3data|safe }}
+	{{ fillkey|safe }}
+    }, data:{{ map3data|safe }}
 });
 resultmap_q3.labels();
 
