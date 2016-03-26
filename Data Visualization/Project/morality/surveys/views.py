@@ -13,6 +13,7 @@ def survey(request):
 		f = SurveyForm(postdata)
 		if f.is_valid():
 			f.save()
+			request.session['watched_video'] = True
 			return HttpResponseRedirect('/')
 	else:
 		f = SurveyForm()

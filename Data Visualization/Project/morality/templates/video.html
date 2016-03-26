@@ -13,9 +13,22 @@ the below video and answer our survey questions.
 <p>When you return from the survey, your data will  
 automatically fill our visualizations below.</p>
 {{ video|safe }}
+{% if watched_video %}
+
+<br/>
+<div class="alert alert-success">
+  <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+      <span aria-hidden="true">&times;</span>
+  </button>
+  <strong>Thanks!</strong> Your response was recorded.
+</div>
+
+{% else %}
+
 <br/>
 <a href="{% url 'surveys:survey' %}" class='btn btn-primary'>Go to survey</a>
 
+{% endif %}
 </div> <!-- col -->
 </div> <!-- row -->
 
