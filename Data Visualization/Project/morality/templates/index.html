@@ -3,21 +3,24 @@
 
 {% block main %}
 
-<div class="container-fluid">
-
-{% block index_headline %}
 <div class="row">
 <div class="col-xs-12 col-md-offset-2 col-md-8">
-<div class="page-header">
-  <h1>Morality project <small>Duke morality survey</small></h1>
-</div>
+
+{% include "index_headline.html" %}
+
 </div> <!-- col -->
 </div> <!-- row -->
-{% endblock %}
 
-{% block test_video %} {% endblock %}
-{% block survey %} {% endblock %}
 
-</div> <!-- container -->
+<div class="row">
+<div class="col-xs-12 col-md-offset-2 col-md-8">
+
+{% include "index_video.html" %}
+
+</div> <!-- col -->
+</div> <!-- row -->
+
+
+{% include "index_mapcharts.html" %}
 
 {% endblock %}

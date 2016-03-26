@@ -24,7 +24,7 @@ def index(request):
 			request.session['video'] = 'test'
 	else:
 		video = videos[request.session.get('video')]
-	tmp = loader.get_template('video.html')
+	tmp = loader.get_template('index.html')
 	watched_video = request.session.get('watched_video',False)
 	c = {
 		'video':video
