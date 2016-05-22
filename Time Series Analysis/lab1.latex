@@ -1,0 +1,54 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{mathtools}
+
+\title{W271 Lab 1}
+\author{Brandon Shurick }
+\date{May 2016}
+
+\begin{document}
+
+\maketitle
+
+\section{Question 1}
+Question ignored, as per instructions.
+
+\section{Question 2}
+Suppose for events A and B, $Pr(A) = p \leq 1/2$, $Pr(B)=q$, where $\frac{1}{4} < q < \frac{1}{2}$. These are the only information we have about the events. 
+
+\begin{enumerate}
+
+    \item What are the maximum and minimum possible values for $Pr(A \cup  B)$?  
+    
+    The maximum possible value for a union of two probabilities would be the sum of the largest possible probabilities, less the smallest possible combined probability of both events, in this case, where $p=1/2$ and $q\approx1/2$, and $p \cap q = 0$. So, $P(A)+P(B)-P(A\cap B ) \approx 1$. \par The minimum possible value for a union of two probabilities would be the sum of the smallest possible probabilities, less the largest possible combined probability of both events, in this case, where $p=0$ and $q \approx 1/4$, and $p \cap q = 0$. So, $P(A)+P(B)-P(A\cap B ) \approx 1/4$.
+    
+    \item What are the maximum and minimum possible values for $Pr(A|B)$?
+    
+    Given Bayes's formula, $P(A|B)=\frac{P(A)*P(B|A)}{P(B)}$, the maximum values for $P(A)$,  $P(B)$, and $P(B|A)$ would be $P(A)=1/2$, $P(B) \approx 1/2$, and $P(B|A) \approx 1$. Given the formula, $P(A|B)=\frac{1/2 * 1}{1/2} \approx 1$. 
+    
+    The minimum values for  $P(A)$,  $P(B)$, and $P(B|A)$ would be $P(A)=0$, $P(B) \approx 1/4$, and $P(B|A) \approx 1/4$. Given the formula, $P(A|B)=\frac{0 * 1/4}{1/4}=0$. 
+    
+\end{enumerate}
+
+\section{Question 3}
+For a randomly selected county in the United States, let X represent the proportion of adults over age 65 who are employed, or the elderly employment rate. Then, X is restricted to a value between zero and one. Suppose that the cumulative distribution function for X is given by $F(x)=3x^2-2x^3$ for $0 \leq x \leq 1$. Find the probability that the elderly employment rate is at least .6 (60\%). \par
+
+The function $F(x)=3x^2-2x^3=-x^2(2x-3)$ has a definite integral $\int_{0.6}^{1} 3x^2-2x^3 = 0.5 - 0.1512 = 0.3488$.
+
+\section{Question 4}
+Just prior to jury selection for O. J. Simpson’s murder trial in 1995, a poll found that about 20\% of the adult population believed Simpson was innocent (after much of the physical evidence in the case had been revealed to the public). Ignore the fact that this 20\% is an estimate based on a sub-sample from the population; for illustration, take it as the true percentage of people who thought Simpson was innocent prior to jury selection. Assume that the 12 jurors were selected randomly and independently from the population (although this turned out not to be true). \par
+
+\begin{enumerate}
+\item Find the probability that the jury had at least one member who believed in Simpson’s innocence prior to jury selection. [Hint: Define the Binomial(12,.20) random variable X to be the number of jurors believing in Simpson’s innocence.]
+
+Using the density function for $Binomial(12, 0.2)$, the probability of having 0 jurors believe in Simpson's innocence prior to jury selection is 6.9\%, so the probability of 1 or more jurors is 100\%-6.9\% or 93.1\%. 
+
+\item Find the probability that the jury had at least two members who believed in Simpson’s innocence.[Hint:$P(X \geq 2)=1-P(X \leq 1)$, and $P(X \leq 1) = P(X=0)+P(X=1)$.]
+
+Using the density function for $Binomial(12, 0.2)$, the probability of having 0 jurors believe in Simpson's innocence is 6.9\%, and the probability of having 1 jurors believe in Simpson's innocence is 20.6\%, and so combined $P(X \leq 1) = 6.9\% + 20.6\%=27.5\%$. Thus, $P(X \geq 2) = 1-27.5\% = 72.5\%$. 
+
+
+\end{enumerate}
+
+\end{document}
+
