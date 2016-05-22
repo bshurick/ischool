@@ -50,5 +50,30 @@ Using the density function for $Binomial(12, 0.2)$, the probability of having 0 
 
 \end{enumerate}
 
+
+\section{Question 5}
+ (Requires calculus) Let X denote the prison sentence, in years, for people convicted of auto theft in a particular state in the United States. Suppose that the pdf of X is given by
+$f(x) = (1/9)x^2$, $0 < x < 3$. Use integration to find the expected prison sentence. \par
+
+$\int_{0}^{3}(1/9)x^2*x = (1/36)(3)^4 - (1/36)(0)^4=2.25$
+
+\section{Question 6}
+If a basketball player is a 74\% free throw shooter, then, on average, how many free throws will he or she make in a game with eight free throw attempts?
+
+The expected value of $Binomial(8, 0.74)=8*0.74=5.92$ or $\approx 6$ free throws.
+
+\section{Question 7}
+You are hired by the governor to study whether a tax on liquor has decreased average liquor consumption in your state. You are able to obtain, for a sample of individuals selected at random, the difference in liquor consumption (in ounces) for the years before and after the
+tax. For person $i$ who is sampled randomly from the population, $Y_i$ denotes the change in liquor consumption. Treat these as a random sample from a $Normal(\mu,\sigma)$ distribution. \par 
+\begin{enumerate}
+\item The null hypothesis is that there was no change in average liquor consumption. State this formally in terms of $\mu$.
+\item The alternative is that there was a decline in liquor consumption; state the alternative
+in terms of $\mu$.
+\item Now, suppose your sample size is $n = 900$ and you obtain the estimates $\bar{y} = -32.8$ and $s = 466.4$. Calculate the $t$ statistic for testing $H_0$ against $H_1$; obtain the p-value for the test. (Because of the large sample size, just use the standard normal distribution tabulated in Table G.1.) Do you reject H0 at the 5\% level? At the 1\% level?
+\item Would you say that the estimated fall in consumption is large in magnitude? Comment on the practical versus statistical significance of this estimate.
+\item What has been implicitly assumed in your analysis about other determinants of liquor consumption over the two-year period in order to infer causality from the tax change to liquor consumption?
+\end{enumerate}
+
+
 \end{document}
 
