@@ -131,5 +131,33 @@ In this case, $(\bar{Y}-\theta)/se(\bar{Y})=-7.96$, which equates to a p-value o
 
 \end{enumerate}
 
+
+\section{Question 9}
+Suppose that a military dictator in an unnamed country holds a plebiscite (a yes/no vote of confidence) and claims that he was supported by 65\% of the voters. A human rights group suspects foul play and hires you to test the validity of the dictator’s claim. You have a budget that allows you to randomly sample 200 voters from the country.
+\begin{enumerate}
+\item Let X be the number of yes votes obtained from a random sample of 200 out of the entire voting population. What is the expected value of X if, in fact, 65\% of all voters supported the dictator?
+
+The expected value of X would be 65\% of 200, or 130.
+
+\item What is the standard deviation of X, again assuming that the true fraction voting yes in the plebiscite is .65?
+
+The standard deviation of 130 yes's (yes = 1) and 70 no's (no = 0) is 0.478167.
+
+\item Now, you collect your sample of 200, and you find that 115 people actually voted yes. Use the CLT to approximate the probability that you would find 115 or fewer yes votes from a random sample of 200 if, in fact, 65\% of the entire population voted yes.
+
+The Z-score would be $Z = (\bar{y} - \mu_0)/(S_n/\sqrt{n}$, \par or $(0.575-0.65)/(0.4781665/\sqrt{200}) = -2.218182$ which equates to a p-value of 0.0138, meaning that there is approximately a 1.4\% probability of observing 115 or fewer votes if, in fact, the true percentage of yes votes for the population was 65\%.
+
+\item How would you explain the relevance of the number in part (iii) to someone who does not have training in statistics?
+
+The p-value represents how unusual our data is, and is used in statistical tests to give reasonable evidence that we should reject the null hypothesis.
+
+\end{enumerate}
+
+\section{Question 10}
+Before a strike prematurely ended the 1994 major league baseball season, Tony Gwynn of the San Diego Padres had 165 hits in 419 at bats, for a .394 batting average. There was discussion about whether Gwynn was a potential .400 hitter that year. This issue can be couched in terms of Gwynn’s probability of getting a hit on a particular at bat, call it $\theta$. Let $Y_i$ be the $Bernoulli(\theta)$ indicator equal to unity if Gwynn gets a hit during his $i$th at bat, and zero otherwise. Then, $Y_1, Y_2, ..., Y_n$ is a random sample from a $Bernoulli(\theta)$ distribution, where $\theta$ is the probability of success, and n = 419. \par
+Our best point estimate of $\theta$ is Gwynn’s batting average, which is just the proportion of successes: $\bar{y}=.394$. Using the fact that $se(\bar{y})=\sqrt{\bar{y}(1-\bar{y})/n}$, construct an approximate 95\% confidence interval for u, using the standard normal distribution. Would you say there is strong evidence against Gwynn’s being a potential .400 hitter? Explain.
+
+A normalized value for Gwinn's batting average would be equal to $(\bar{y} - \mu_0)/se(\bar{y})$, or $(0.394-0.4)/(\sqrt{0.394*(1-0.394)/419})=-0.2513$. This z-score would equate to a p-value of 0.40, which is not significant, which means that there is not enough evidence to reject the null hypothesis that Gwinn's true batting average is 0.400. 
+
 \end{document}
 

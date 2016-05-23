@@ -23,3 +23,16 @@ p_value <- pnorm(Z)
 print(paste0('SD of theta: ',round(sd(theta),6)))
 print(paste0('SD of FGA: ',round(sd(fga),2)))
 print(paste0('P-value: ',round(p_value,16)))
+
+
+# Question 9 
+yes_no <- c(rep(1,130),rep(0,70))
+print(paste0('SD: ',round(sd(yes_no),6)))
+z <- (0.575-0.65)/(0.4781665/sqrt(200))
+p_value = pnorm(z)
+print(paste0('P-value: ',round(p_value,16)))
+
+
+# Question 10
+z <- (0.394-0.4)/(sqrt(0.394*(1-0.394)/419))
+p_value = pnorm(z)
