@@ -81,9 +81,55 @@ The alternative hypothesis would be stated as $H_1: \mu < 0$, in which case the 
 The $t$ statistic in this case is $t = \sqrt{n}*(\bar{y} - \mu_0)/s = \sqrt{900}*(-32.8 - 0)/466.4 = -2.11$, with $p-value = 0.0143$. $H_0$ would be rejected at a 5\% level, but not at a  1\% level. 
 
 \item Would you say that the estimated fall in consumption is large in magnitude? Comment on the practical versus statistical significance of this estimate.
+
+I would say that a mean drop in consumption of 32.8 ounces is not a large magnitude. This would translate to a mean drop in consumption of one-bottle-and-a-half per year. Although it is not clear what the average amount of liquor a consumer typically purchases, it seems as though this is not a practically significant change in purchasing behavior, although it is a statistically significant change.
+
+
 \item What has been implicitly assumed in your analysis about other determinants of liquor consumption over the two-year period in order to infer causality from the tax change to liquor consumption?
+
+It must be assumed that no determinant of liquor consumption over the two-year period had any effect on liquor consumption, other than the tax change. 
+
 \end{enumerate}
 
+\section{Question 8}
+The New York Times (2/5/90) reported three-point shooting performance for the top 10
+three-point shooters in the NBA. The following table summarizes these data:
+  
+\begin{center}
+\begin{tabular}{ |c|c| } 
+\hline
+Player & FGA-FGM \\
+\hline
+Mark Price & 429-188 \\
+Trent Tucker & 833-345 \\
+Dale Ellis & 1,149-472 \\
+Craig Hodges & 1,016-396 \\
+Danny Ainge & 1,051-406 \\
+Byron Scott & 676-260 \\
+Reggie Miller & 416-159 \\
+Larry Bird & 1,206-455 \\
+Jon Sundvold & 440-166 \\
+Brian Taylor & 417-157 \\
+\hline
+\end{tabular}
+
+\end{center}
+Note: FGA = field goals attempted and FGM = field goals made. \par
+
+For a given player, the outcome of a particular shot can be modeled as a Bernoulli (zero-one) variable: if $Y_i$ is the outcome of shot $i$,then $Y_i=1$ if the shot is made, and $Y_i=0$ if the shot is missed. Let $\theta$ denote the probability of making any particular three-point shot attempt. The natural estimator of $\theta$ is $\bar{Y}= FGM/FGA$.
+\begin{enumerate}
+\item Estimate $\theta$ for Mark Price. 
+
+$\theta=FGM/FGA=188/429\approx0.4382$
+\item Find the standard deviation of the estimator $\bar{Y}$ in terms of $\theta$ and the number of shot
+attempts, $n$.  
+The standard deviation of $\theta=0.0206$; the standard deviation of $FGA=326.71$
+\item The asymptotic distribution of $(\bar{Y}-\theta)/se(\bar{Y})$ is standard normal, where $se(\bar{Y})=\sqrt{\bar{Y}(1-\bar{Y})/n}$. Use this fact to test $H_0: \theta = .5$ against $H_1: \theta < .5$ for Mark Price. Use a
+1\% significance level.
+
+In this case, $(\bar{Y}-\theta)/se(\bar{Y})=-7.96$, which equates to a p-value of $9e-16$ and is well below the 1\% significance threshold.
+
+\end{enumerate}
 
 \end{document}
 
