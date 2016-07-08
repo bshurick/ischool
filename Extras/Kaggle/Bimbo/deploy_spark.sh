@@ -20,7 +20,7 @@ export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre
 
 # download maven 3.3+
 wget http://apache.osuosl.org/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz
-tar xvzf apache-maven-3.3.9
+tar xvzf apache-maven-3.3.9-bin.tar.gz
 cd apache-maven-3.3.9
 
 # install maven
