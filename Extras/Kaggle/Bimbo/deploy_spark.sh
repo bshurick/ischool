@@ -47,3 +47,13 @@ export SPARK_HOME=$(pwd)
 ./sbin/start-all.sh
 cd ~
 
+# mount file system
+sudo mkfs -t ext4 /dev/xvdb
+sudo mkdir /Data
+sudo mount /dev/xvdb /Data
+# move data into /Data folder
+# add these lines into spark conf
+# spark.driver.memory              10g
+# spark.executor.memory            20g
+# spark.executor.cores             3
+# spark.eventLog.dir               file:///Data/tmp/spark-events
