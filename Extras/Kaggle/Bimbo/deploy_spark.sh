@@ -50,6 +50,9 @@ cd ~
 # mount file system
 sudo mkfs -t ext4 /dev/xvdb
 sudo mkdir /Data
+sudo mkdir /Data/tmp
+sudo mkdir /Data/tmp/logs
+sudo mkdir /Data/tmp/jobs
 sudo mount /dev/xvdb /Data
 # move data into /Data folder
 # add these lines into spark conf
