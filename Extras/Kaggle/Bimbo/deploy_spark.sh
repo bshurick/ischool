@@ -36,3 +36,12 @@ tar xvzf spark-1.6.2.tgz
 cd spark-1.6.2
 build/mvn -Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -DskipTests clean package
 
+# deploy keys
+ssh-keygen -t rsa
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+
+# startup spark
+./sbin/spark-config.sh
+./sbin/stop-all.sh
+./sbin/start-all.sh
+
