@@ -41,7 +41,9 @@ ssh-keygen -t rsa
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
 # startup spark
+export SPARK_HOME=$(pwd)
 ./sbin/spark-config.sh
 ./sbin/stop-all.sh
 ./sbin/start-all.sh
+cd ~
 
