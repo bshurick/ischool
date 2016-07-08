@@ -40,13 +40,6 @@ build/mvn -Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -DskipTests clean package
 ssh-keygen -t rsa
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
 
-# startup spark
-export SPARK_HOME=$(pwd)
-./sbin/spark-config.sh
-./sbin/stop-all.sh
-./sbin/start-all.sh
-cd ~
-
 # mount file system
 sudo mkfs -t ext4 /dev/xvdb
 sudo mkdir /Data
@@ -55,13 +48,22 @@ sudo mkdir /Data/tmp/logs
 sudo mkdir /Data/tmp/jobs
 sudo mount /dev/xvdb /Data
 # move data into /Data folder
-# create conf/spark-defaults.conf
-# spark.driver.memory              30g
-# spark.executor.memory            30g
-# spark.executor.cores             3
 
-# create conf/spark-env.sh and add these lines
-# SPARK_LOCAL_DIRS=/Data/tmp
-# SPARK_WORKER_DIR=/Data/tmp/jobs
-# SPARK_LOG_DIR=/Data/tmp/logs
+# create conf/spark-defaults.conf
+echo 'spark.driver.memory              30g'> conf/spark-defaults.conf
+echo 'spark.executor.memory            30g'>> conf/spark-defaults.conf
+echo 'spark.executor.cores             3'>> conf/spark-defaults.conf
+
+# create conf/spark-env.sh 
+echo '#!/usr/bin/env bash' > conf/spark-env.sh
+echo 'SPARK_LOCAL_DIRS=/Data/tmp' >> conf/spark-env.sh
+echo 'SPARK_LOCAL_DIRS=/Data/tmp/jobs' >> conf/spark-env.sh
+echo 'SPARK_LOCAL_DIRS=/Data/tmp/logs' >> conf/spark-env.sh
+
+# startup spark
+export SPARK_HOME=$(pwd)
+./sbin/spark-config.sh
+./sbin/stop-all.sh
+./sbin/start-all.sh
+cd ~
 
