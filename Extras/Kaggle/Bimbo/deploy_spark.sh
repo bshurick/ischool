@@ -47,6 +47,7 @@ sudo mkdir /Data/tmp
 sudo mkdir /Data/tmp/logs
 sudo mkdir /Data/tmp/jobs
 sudo mount /dev/xvdb /Data
+sudo chown -R ubuntu:ubuntu /Data
 # move data into /Data folder
 
 # create conf/spark-defaults.conf
