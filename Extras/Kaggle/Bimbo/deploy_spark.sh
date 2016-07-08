@@ -28,6 +28,7 @@ MAVEN_HOME=$( pwd )
 sudo ln -s $MAVEN_HOME/bin/mvn /usr/bin/mvn
 
 # download spark
+cd ..
 wget http://mirror.cc.columbia.edu/pub/software/apache/spark/spark-1.6.2/spark-1.6.2.tgz
 tar xvzf spark-1.6.2.tgz
 
