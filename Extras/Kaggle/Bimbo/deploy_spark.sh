@@ -55,8 +55,13 @@ sudo mkdir /Data/tmp/logs
 sudo mkdir /Data/tmp/jobs
 sudo mount /dev/xvdb /Data
 # move data into /Data folder
-# add these lines into spark conf
-# spark.driver.memory              10g
-# spark.executor.memory            20g
+# create conf/spark-defaults.conf
+# spark.driver.memory              30g
+# spark.executor.memory            30g
 # spark.executor.cores             3
-# spark.eventLog.dir               file:///Data/tmp/spark-events
+
+# create conf/spark-env.sh and add these lines
+# SPARK_LOCAL_DIRS=/Data/tmp
+# SPARK_WORKER_DIR=/Data/tmp/jobs
+# SPARK_LOG_DIR=/Data/tmp/logs
+
