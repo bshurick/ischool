@@ -10,6 +10,7 @@ library(lmtest)
 library(car)
 library(sandwich)
 
+
 #####################################################################
 # 
 # Load data and set args
@@ -23,11 +24,21 @@ reload_data <- function() {
   lab.data.q2 <<- read.csv(paste0(lab.folder,lab.file.q2))
   currentyear <<- as.numeric(format(Sys.Date(),"%Y"))
 }
+
+
 #####################################################################
 # 
 # Question #2
 # 
 #####################################################################
+
+
+#####################################################################
+# 
+# Question #2
+# 
+#####################################################################
+
 
 # Part 1 -- 
 # Does Hillary Clinton rate relatively higher compared to 
@@ -56,7 +67,7 @@ lab.data.q2 <- within(lab.data.q2, {
   fthisp        <- ifelse(fthisp<=100,       # set NAs
                           fthisp, 
                           NA)   
-  ftblack        <- ifelse(ftblack<=100,     # set NAs
+  ftblack       <- ifelse(ftblack<=100,      # set NAs
                           ftblack, 
                           NA)    
   hc_over_bs    <- fthrc - ftsanders         # calculate diff of HC->BS
@@ -90,5 +101,4 @@ waldtest(lmodel, vcov = vcovHC)
 # for Obama and rating of economy constant --
 # that a higher rating for minorities decreases
 # the likelyhood of rating Hillary over Sanders
-
 
