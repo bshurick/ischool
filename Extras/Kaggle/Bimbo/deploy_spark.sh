@@ -51,15 +51,16 @@ sudo chown -R ubuntu:ubuntu /Data
 # move data into /Data folder
 
 # create conf/spark-defaults.conf
-echo 'spark.driver.memory              30g'> conf/spark-defaults.conf
-echo 'spark.executor.memory            30g'>> conf/spark-defaults.conf
+echo 'spark.driver.memory              20g'> conf/spark-defaults.conf
+echo 'spark.executor.memory            20g'>> conf/spark-defaults.conf
 echo 'spark.executor.cores             3'>> conf/spark-defaults.conf
 
 # create conf/spark-env.sh 
 echo '#!/usr/bin/env bash' > conf/spark-env.sh
 echo 'SPARK_LOCAL_DIRS=/Data/tmp' >> conf/spark-env.sh
-echo 'SPARK_LOCAL_DIRS=/Data/tmp/jobs' >> conf/spark-env.sh
-echo 'SPARK_LOCAL_DIRS=/Data/tmp/logs' >> conf/spark-env.sh
+echo 'SPARK_WORKER_DIR=/Data/tmp/jobs' >> conf/spark-env.sh
+echo 'SPARK_LOG_DIR=/Data/tmp/logs' >> conf/spark-env.sh
+echo 'SPARK_WORKER_INSTANCES=2' >> conf/spark-env.sh
 
 # startup spark
 export SPARK_HOME=$(pwd)
