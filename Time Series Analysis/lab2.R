@@ -34,7 +34,8 @@ reload_data <- function() {
 # Bernie Sanders among individuals who have a higher feeling 
 # thermometer rating for minority groups? 
 reload_data()
-summary(lab.data.q2)
+
+# Data cleaning & manipulation
 lab.data.q2 <- within(lab.data.q2, {
   female        <- (gender == 2)*1           # create female dummy variable
   presjob_lh    <- 8-presjob                 # flip rating from low->high
@@ -62,8 +63,32 @@ lab.data.q2 <- within(lab.data.q2, {
   bs_over_hc    <- ftsanders - fthrc         # calculate diff of BS->HC
   ftminority    <- (ftblack+fthisp)/2        # create mean value of minorities
 })
+summary(lab.data.q2)
 
+# model building
 ff <- hc_over_bs ~ ftminority
 lmodel <- lm(ff, data=lab.data.q2)
 coeftest(lmodel, vcov=vcovHC)
+waldtest(lmodel, vcov = vcovHC)
+# parameter ftminority is not a significant
+# predictor of rating Hillary over Sanders
+
+
+# Part 2 -- 
+# How does the inclusion of respondents’ perception of 
+# President Obama and the economy (well known predictors 
+# of presidential elections) impact your answer 
+# to the first question? 
+ff <- hc_over_bs ~ ftminority + ftobama + econnow_lh 
+lmodel <- lm(ff, data=lab.data.q2)
+coeftest(lmodel, vcov=vcovHC)
+waldtest(lmodel, vcov = vcovHC)
+# adding in parameters for rating of Obama 
+# and the economy (to a much lesser extent)
+# reduces noise in the coefficient for minority
+# and now signifies that -- holding approval 
+# for Obama and rating of economy constant --
+# that a higher rating for minorities decreases
+# the likelyhood of rating Hillary over Sanders
+
 
