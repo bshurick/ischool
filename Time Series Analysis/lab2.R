@@ -61,6 +61,7 @@ summary(model1.lm)
 c <- coeftest(model1.lm, vcov=vcovHC); c
 w <- waldtest(model1.lm, vcov=vcovHC); w
 
+
 # Part 2a. --
 # Is there evidence the line does not pass through the origin? 
 # Answer this question using a confidence interval.
@@ -68,6 +69,7 @@ CI <- c[1,1] +             # Intercept
       c[1,2]*c(-1.96,1.96) # Confidence Interval
 print(paste('Intercept confidence interval is between'
             ,round(CI[1],2),'and',round(CI[2],2)))
+
 
 # Part 2b. --
 # If the line passes through the origin, 
@@ -80,6 +82,34 @@ print(paste('Intercept confidence interval is between'
 tval <- (c[2,1]-100)/c[2,2]
 pval <- pt(tval, N-2)
 print(paste('P-value is',round(pval,6)))
+
+
+# Part 2c. --
+# Is there evidence the residuals do not have a Normal distribution?
+# Answer this question with the appropriate 
+# visualization and hypothesis test.
+plot(model1.lm)
+shapiro.test(model1.lm$residuals)
+# null hypothesis = normally distributed
+# we reject the null hypothesis (show QQ plot)
+
+
+# Part 2d. --
+# Is there evidence the fireplace variable is needed in the model? 
+# Answer this question with the appropriate visualization 
+# and numerical statistics. 
+# If you find that the fireplace variable is needed in the model, 
+# what condition is violated for model #1?
+model1.lm.fireplace <- lm(Price ~ Living.Area + has_fireplace, data=saratoga)
+ssr_ur <- sum(model1.lm.fireplace$residuals**2)
+ssr_r <- sum(model1.lm$residuals**2)
+fval <- ((ssr_r-ssr_ur)/1) / (ssr_ur/(N-3))
+pval <- 1 - pf(fval, 1, N-3)
+# anova(model1.lm, model1.lm.fireplace)
+print(paste('F-value of',round(fval,2),
+            'is significant at p value of',round(pval,4)))
+# F-Test is significant, meaning the new model has significantly
+# higher explained variance
 
 
 #####################################################################
