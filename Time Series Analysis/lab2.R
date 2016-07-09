@@ -19,8 +19,8 @@ library(sandwich)
 reload_data <- function() {
   lab.folder <<- '/Users/bshur/School/Time Series Analysis/lab2 for students/'
   lab.file.q1 <<- 'saratoga.rdata'
+  load(paste0(lab.folder,lab.file.q1), .GlobalEnv)
   lab.file.q2 <<- 'public_opinon_us_primary.csv'
-  lab.data.q1 <<- load(paste0(lab.folder,lab.file.q1))
   lab.data.q2 <<- read.csv(paste0(lab.folder,lab.file.q2))
   currentyear <<- as.numeric(format(Sys.Date(),"%Y"))
 }
@@ -28,9 +28,58 @@ reload_data <- function() {
 
 #####################################################################
 # 
-# Question #2
+# Question #1
 # 
 #####################################################################
+
+# Part 1 --
+# Begin with a thorough exploratory data analysis. 
+# For each item presented, provide a
+# discussion of any observations and insights you find.
+reload_data()
+summary(saratoga)
+saratoga <- within(saratoga, {
+  has_fireplace <- Fireplace=='Yes'
+  Acres <- NULL
+  Fireplace <- NULL
+})
+N <- nrow(saratoga)
+scatterplotMatrix(~Price + ., data=saratoga)
+cor(saratoga)
+# - Living area seems to be highly correlated with baths and bedrooms,
+# which both may be proxies for living area
+# - Price and living area seem to have a non-linear relationship
+# - Age looks to have a decreasing impact on price
+
+# Part 2 --
+# Fit a model that uses size to predict price, 
+# denote this as model #1.
+model1.ff <- Price ~ Living.Area
+model1.lm <- lm(model1.ff, data=saratoga)
+# plot(model1.lm)
+summary(model1.lm)
+c <- coeftest(model1.lm, vcov=vcovHC); c
+w <- waldtest(model1.lm, vcov=vcovHC); w
+
+# Part 2a. --
+# Is there evidence the line does not pass through the origin? 
+# Answer this question using a confidence interval.
+CI <- c[1,1] +             # Intercept
+      c[1,2]*c(-1.96,1.96) # Confidence Interval
+print(paste('Intercept confidence interval is between'
+            ,round(CI[1],2),'and',round(CI[2],2)))
+
+# Part 2b. --
+# If the line passes through the origin, 
+# then the slope is a proxy for the price per square foot. 
+# Is there evidence the price per square foot is less than 
+# $100 per square foot? 
+# Answer this question using a hypothesis test.
+# H_0: B_1 - 100 = 0
+# H_1: B_1 - 100 < 0
+tval <- (c[2,1]-100)/c[2,2]
+pval <- pt(tval, N-2)
+print(paste('P-value is',round(pval,6)))
 
 
 #####################################################################
