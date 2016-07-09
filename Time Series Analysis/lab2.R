@@ -51,6 +51,7 @@ cor(saratoga)
 # - Price and living area seem to have a non-linear relationship
 # - Age looks to have a decreasing impact on price
 
+
 # Part 2 --
 # Fit a model that uses size to predict price, 
 # denote this as model #1.
