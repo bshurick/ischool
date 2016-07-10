@@ -38,14 +38,18 @@ reload_data <- function() {
 # discussion of any observations and insights you find.
 # ------
 reload_data()
-summary(saratoga)
+str(saratoga)
+summary(saratoga) # reveals one NA value for Acra
+saratoga <- na.omit(saratoga)
+N <- nrow(saratoga)
+
+scatterplotMatrix(~Price + ., data=saratoga)
+
 saratoga <- within(saratoga, {
   has_fireplace <- Fireplace=='Yes'
 })
-saratoga <- na.omit(saratoga)
-N <- nrow(saratoga)
-scatterplotMatrix(~Price + ., data=saratoga)
-cor(saratoga)
+cor(saratoga[,colnames(saratoga)!='Fireplace'])
+# - One NA value, omitted
 # - Living area seems to be highly correlated with baths and bedrooms,
 # which both may be proxies for living area
 # - Price and living area seem to have a non-linear relationship
@@ -286,7 +290,6 @@ anova(lmodel5.restricted, lmodel5.lm)
 # on the value of living area. As living area increases, 
 # ------
 # the effect of fireplace increases by 40.73.
-
 
 
 
