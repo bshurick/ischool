@@ -48,7 +48,7 @@ scatterplotMatrix(~Price + ., data=saratoga)
 saratoga <- within(saratoga, {
   has_fireplace <- Fireplace=='Yes'
 })
-cor(saratoga[,colnames(saratoga)!='Fireplace'])
+cor(saratoga[,colnames(saratoga)!='Fireplace'], method='pearson')
 # - One NA value, omitted
 # - Living area seems to be highly correlated with baths and bedrooms,
 # which both may be proxies for living area
@@ -63,9 +63,7 @@ cor(saratoga[,colnames(saratoga)!='Fireplace'])
 model1.ff <- Price ~ Living.Area
 model1.lm <- lm(model1.ff, data=saratoga)
 # plot(model1.lm)
-summary(model1.lm)
-c <- coeftest(model1.lm, vcov=vcovHC); c
-w <- waldtest(model1.lm, vcov=vcovHC); w
+c <- summary(model1.lm)
 
 
 # Part 2a. --
@@ -87,8 +85,8 @@ print(paste('Intercept confidence interval is between'
 # ------
 # H_0: B_1 - 100 = 0
 # H_1: B_1 - 100 < 0
-tval <- (c[2,1]-100)/c[2,2]
-pval <- pt(tval, N-2)
+tval <- (c$coefficients[2,1]-100)/c$coefficients[2,2]
+pval <- pt(tval, N-1-1)
 print(paste('P-value is',round(pval,6)))
 
 
@@ -146,9 +144,9 @@ summary(lmodel2.lm)
 # using a hypothesis test.
 # ------
 # Yes, the slope estimate for adding a fireplace 
-# is $9,805, with standard error of 3,812. The
-# t-value of this estimate is 2.572, which translates
-# to a p-value of 0.0102, which could be considered
+# is $9,794, with standard error of 3,815. The
+# t-value of this estimate is 2.567, which translates
+# to a p-value of 0.0104, which could be considered
 # evidence that the change in price from 
 # the addition of a fireplace is nonzero. 
 
