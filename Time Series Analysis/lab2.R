@@ -328,14 +328,18 @@ lab.data.q2 <- within(lab.data.q2, {
   hc_over_bs    <- fthrc - ftsanders         # calculate diff of HC->BS
   bs_over_hc    <- ftsanders - fthrc         # calculate diff of BS->HC
   ftminority    <- (ftblack+fthisp)/2        # create mean value of minorities
+  minority_ntil <- quantile(ftminority       # create quantile with minority rating
+                   , seq(0,1,.25),na.rm=T)
 })
 summary(lab.data.q2)
 
 # model building
 ff <- hc_over_bs ~ ftminority
 lmodel <- lm(ff, data=lab.data.q2)
-coeftest(lmodel, vcov=vcovHC)
-waldtest(lmodel, vcov = vcovHC)
+c <- coeftest(lmodel, vcov=vcovHC); c
+w <- waldtest(lmodel, vcov = vcovHC); w
+c[2,1]+c[2,2]*c(-1.96,1.96)
+
 # parameter ftminority is not a significant
 # predictor of rating Hillary over Sanders
 
@@ -356,5 +360,5 @@ waldtest(lmodel, vcov = vcovHC)
 # and now signifies that -- holding approval 
 # for Obama and rating of economy constant --
 # that a higher rating for minorities decreases
-# the likelyhood of rating Hillary over Sanders
+# the likelihood of rating Hillary over Sanders
 
