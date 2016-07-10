@@ -217,13 +217,13 @@ lmodel4.lm <- lm(Price ~ Living.Area + Baths + Bedrooms + has_fireplace, saratog
 # when changing from homes without a fireplace to homes with a 
 # fireplace? Answer this question using a hypothesis test.
 # ------
-coeftest(lmodel4.lm, vcov=vcovHC)
-# There is evidence that fireplace does not increase 
+summary(lmodel4.lm, vcov=vcovHC)
+# There is not evidence that fireplace changes 
 # the price, as the coefficient estimate for fireplace
-# is now 5143, and the standard error is 4161, which 
+# is now 5143, and the standard error is 3756, which 
 # means that the 95% confidence interval contains zero.
-# The t-value of this estimate is 1.236, which is a 
-# p-value of 0.21673, so there is not enough evidence
+# The t-value of this estimate is 1.369, which is a 
+# p-value of 0.1712, so there is not enough evidence
 # to reject the null hypothesis that the coefficent is zero.
 
 
@@ -265,8 +265,7 @@ lmodel5.lm <- lm(Price ~ Living.Area + Baths + Bedrooms + has_fireplace + has_fi
 # For homes with a fireplace, what is the slope 
 # between size and price.
 # ------
-coeftest(lmodel5.lm)
-# The slope is 40.7
+summary(lmodel5.lm)
 
 
 # Part 6b --
@@ -281,9 +280,9 @@ anova(lmodel5.restricted, lmodel5.lm)
 # Part 6c --
 # Explain what an interaction between the size and fireplace 
 # variables means in the context of the problem.
+# ------
 # It means that the effect of fireplace on price is dependent
 # on the value of living area. As living area increases, 
-# ------
 # the effect of fireplace increases by 40.73.
 
 
