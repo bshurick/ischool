@@ -9,7 +9,7 @@
 library(lmtest)
 library(car)
 library(sandwich)
-
+library(corrplot)
 
 #####################################################################
 # 
@@ -177,7 +177,7 @@ vif(lmodel3.lm)
 # VIF is moderately high for Bedrooms, Baths, and Living Area
 # None are above 5, which is generally considered to
 # be highly collinear
-
+corrplot(cor(saratoga[,colnames(saratoga)!='Fireplace']), method='ellipse')
 
 # Part 4b --
 # Is there evidence at least one of the acreage or 
@@ -185,15 +185,12 @@ vif(lmodel3.lm)
 # Answer this question using a hypothesis test.
 # ------
 lmodel3.restricted <- lm(Price ~ Living.Area + Baths + Bedrooms, data=saratoga)
-ssr_ur <- sum(lmodel3.lm$residuals**2)
-ssr_r <- sum(lmodel3.restricted$residuals**2)
-q <- 2
-df_ur <- N-5-1
-fval <- ((ssr_r-ssr_ur)/q) / (ssr_ur/df_ur)
-pval <- 1 - pf(fval, q, df_ur)
+lmodel3.restricted1 <- lm(Price ~ Living.Area + Baths + Bedrooms + Age, data=saratoga)
+lmodel3.restricted2 <- lm(Price ~ Living.Area + Baths + Bedrooms + Acres, data=saratoga)
 anova(lmodel3.restricted, lmodel3.lm)
-print(paste('F-value of',round(fval,2),
-            'is significant at p value of',round(pval,4)))
+anova(lmodel3.restricted1, lmodel3.lm)
+anova(lmodel3.restricted2, lmodel3.lm)
+
 
 
 # Part 4c --
