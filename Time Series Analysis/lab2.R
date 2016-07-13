@@ -225,7 +225,7 @@ summary(lmodel4.lm, vcov=vcovHC)
 # Refer to model #2 and part 3 (b). 
 # Explain why the results are different using model #4.
 # ------
-coeftest(lmodel2.lm)
+summary(lmodel2.lm)
 # Compared to model 2, the coefficient for fireplace is 
 # higher in model 4, which indicates that there was 
 # omitted variable bias in model 2. Adding the new
