@@ -3,7 +3,7 @@
 # Program Name      : lab2.R
 # Original Developer: Brandon Shurick
 # Last Updated by   : Brandon Shurick
-# Last Updated      : 7/8/2016
+# Last Updated      : 7/12/2016
 # -------------------------------------------------------------------
 ##################################################################### 
 library(lmtest)
@@ -126,7 +126,7 @@ print(paste('F-value of',round(fval,2),
 # Fit a model that uses the fireplace 
 # variable to predict price, denote this as model #2.
 # ------
-lmodel2.lm <- lm(Price ~ Living.Area + has_fireplace, data=saratoga)
+lmodel2.lm <- lm(Price ~ has_fireplace, data=saratoga)
 summary(lmodel2.lm)
 
 
@@ -143,12 +143,6 @@ summary(lmodel2.lm)
 # fireplace? Answer this question
 # using a hypothesis test.
 # ------
-# Yes, the slope estimate for adding a fireplace 
-# is $9,794, with standard error of 3,815. The
-# t-value of this estimate is 2.567, which translates
-# to a p-value of 0.0104, which could be considered
-# evidence that the change in price from 
-# the addition of a fireplace is nonzero. 
 
 
 # Part 3c --
