@@ -8,12 +8,12 @@ wget https://bootstrap.pypa.io/get-pip.py
 sudo python get-pip.py
 
 # install numpy 
-sudo pip install numpy scipy
+sudo pip install numpy scipy ipython pandas sklearn keras
 
 # install java
 sudo apt-get update
-sudo apt-get install default-jre
-sudo apt-get install default-jdk
+sudo apt-get install -y default-jre
+sudo apt-get install -y default-jdk
 
 # set java home
 export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre
