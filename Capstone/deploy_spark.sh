@@ -15,6 +15,12 @@ sudo apt-get update
 sudo apt-get install -y default-jre
 sudo apt-get install -y default-jdk
 
+# install g++
+sudo apt-get install -y g++
+
+# install python dev
+sudo apt-get install -y python-dev
+
 # set java home
 export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre
 
