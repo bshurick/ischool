@@ -7,22 +7,25 @@ wget https://bootstrap.pypa.io/get-pip.py
 # install pip
 sudo python get-pip.py
 
-# install numpy 
-sudo pip install numpy scipy ipython pandas sklearn keras
-
-# install java
+# update debian packages
 sudo apt-get update
-sudo apt-get install -y default-jre
-sudo apt-get install -y default-jdk
 
 # install g++
 sudo apt-get install -y g++
+sudo apt-get install -y make
+
+# install java
+sudo apt-get install -y default-jre
+sudo apt-get install -y default-jdk
+
+# set java home
+export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre
 
 # install python dev
 sudo apt-get install -y python-dev
 
-# set java home
-export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre
+# install numpy 
+sudo pip install numpy scipy ipython pandas sklearn keras xgboost
 
 # download maven 3.3+
 wget http://apache.osuosl.org/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz
@@ -54,6 +57,10 @@ sudo mkdir /Data/tmp/logs
 sudo mkdir /Data/tmp/jobs
 sudo mount /dev/xvdb /Data
 sudo chown -R ubuntu:ubuntu /Data
+cd /Data
+wget https://www.dropbox.com/s/h4ceb0togkejs99/WISDM_ar_latest.tar
+tar xf WISDM_ar_latest.tar
+cd ~
 # move data into /Data folder
 
 # create conf/spark-defaults.conf
