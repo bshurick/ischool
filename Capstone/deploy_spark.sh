@@ -21,11 +21,11 @@ sudo apt-get install -y default-jdk
 # set java home
 export JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64/jre
 
-# install numpy 
-sudo pip install numpy scipy ipython pandas sklearn keras xgboost
-
 # install python dev
 sudo apt-get install -y python-dev
+
+# install numpy 
+sudo pip install numpy scipy ipython pandas sklearn keras xgboost
 
 # download maven 3.3+
 wget http://apache.osuosl.org/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz
