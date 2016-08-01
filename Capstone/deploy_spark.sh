@@ -7,16 +7,20 @@ wget https://bootstrap.pypa.io/get-pip.py
 # install pip
 sudo python get-pip.py
 
+# update debian packages
+sudo apt-get update
+
 # install g++
 sudo apt-get install -y g++
+sudo apt-get install -y make
+
+# install java
+
+sudo apt-get install -y default-jre
+sudo apt-get install -y default-jdk
 
 # install numpy 
 sudo pip install numpy scipy ipython pandas sklearn keras xgboost
-
-# install java
-sudo apt-get update
-sudo apt-get install -y default-jre
-sudo apt-get install -y default-jdk
 
 # install python dev
 sudo apt-get install -y python-dev
