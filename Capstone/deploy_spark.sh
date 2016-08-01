@@ -57,6 +57,11 @@ sudo mkdir /Data/tmp/logs
 sudo mkdir /Data/tmp/jobs
 sudo mount /dev/xvdb /Data
 sudo chown -R ubuntu:ubuntu /Data
+cd /Data
+wget https://www.dropbox.com/s/h4ceb0togkejs99/WISDM_ar_latest.tar?dl=0
+mv WISDM_ar_latest.tar?dl=0 WISDM_ar_latest.tar
+tar xf WISDM_ar_latest.tar
+cd ~
 # move data into /Data folder
 
 # create conf/spark-defaults.conf
