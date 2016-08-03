@@ -27,6 +27,21 @@ sudo apt-get install -y python-dev
 # install numpy 
 sudo pip install numpy scipy ipython pandas sklearn keras xgboost
 
+# mount file system
+sudo mkfs -t ext4 /dev/xvdb
+sudo mkdir /Data
+sudo mkdir /Data/tmp
+sudo mkdir /Data/tmp/logs
+sudo mkdir /Data/tmp/jobs
+sudo mount /dev/xvdb /Data
+sudo chown -R ubuntu:ubuntu /Data
+cd /Data
+wget https://www.dropbox.com/s/h4ceb0togkejs99/WISDM_ar_latest.tar
+tar xf WISDM_ar_latest.tar
+cd ~
+# move data into /Data folder
+
+
 # download maven 3.3+
 wget http://apache.osuosl.org/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.tar.gz
 tar xvzf apache-maven-3.3.9-bin.tar.gz
@@ -48,20 +63,6 @@ build/mvn -Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -DskipTests clean package
 # deploy keys
 ssh-keygen -t rsa
 cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
-
-# mount file system
-sudo mkfs -t ext4 /dev/xvdb
-sudo mkdir /Data
-sudo mkdir /Data/tmp
-sudo mkdir /Data/tmp/logs
-sudo mkdir /Data/tmp/jobs
-sudo mount /dev/xvdb /Data
-sudo chown -R ubuntu:ubuntu /Data
-cd /Data
-wget https://www.dropbox.com/s/h4ceb0togkejs99/WISDM_ar_latest.tar
-tar xf WISDM_ar_latest.tar
-cd ~
-# move data into /Data folder
 
 # create conf/spark-defaults.conf
 echo 'spark.driver.memory              20g'> conf/spark-defaults.conf
