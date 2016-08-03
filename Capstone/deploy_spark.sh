@@ -56,11 +56,11 @@ sudo ln -s $MAVEN_HOME/bin/mvn /usr/bin/mvn
 
 # download spark
 cd ..
-wget http://mirror.cc.columbia.edu/pub/software/apache/spark/spark-1.6.2/spark-1.6.2.tgz
-tar xvzf spark-1.6.2.tgz
+wget http://d3kbcqa49mib13.cloudfront.net/spark-2.0.0.tgz
+tar xvzf spark-2.0.0.tgz
 
 # build spark 
-cd spark-1.6.2
+cd spark-2.0.0
 build/mvn -Pyarn -Phadoop-2.4 -Dhadoop.version=2.4.0 -DskipTests clean package
 
 # deploy keys
