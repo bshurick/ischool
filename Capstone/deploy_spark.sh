@@ -80,7 +80,7 @@ echo '#!/usr/bin/env bash' > conf/spark-env.sh
 echo 'SPARK_LOCAL_DIRS=/Data/tmp' >> conf/spark-env.sh
 echo 'SPARK_WORKER_DIR=/Data/tmp/jobs' >> conf/spark-env.sh
 echo 'SPARK_LOG_DIR=/Data/tmp/logs' >> conf/spark-env.sh
-echo 'SPARK_WORKER_INSTANCES=2' >> conf/spark-env.sh
+echo 'SPARK_EXECUTOR_INSTANCES=2' >> conf/spark-env.sh
 
 # startup spark
 export SPARK_HOME=$(pwd)
