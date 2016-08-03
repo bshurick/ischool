@@ -10,6 +10,9 @@ sudo python get-pip.py
 # update debian packages
 sudo apt-get update
 
+# install git
+sudo apt-get install -y git
+
 # install g++
 sudo apt-get install -y g++
 sudo apt-get install -y make
