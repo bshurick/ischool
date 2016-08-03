@@ -38,6 +38,9 @@ sudo chown -R ubuntu:ubuntu /Data
 cd /Data
 wget https://www.dropbox.com/s/h4ceb0togkejs99/WISDM_ar_latest.tar
 tar xf WISDM_ar_latest.tar
+cd WISDM_ar_v1.1/
+cat WISDM_ar_v1.1_raw.txt | awk -F',' 'BEGIN { OFS=","; RS=";"; ORS=";"; } \
+{ if (NF==6) { print $0,"" } else if (NF==7) { print $0 }}' > raw_data_fixed.txt
 cd ~
 # move data into /Data folder
 
