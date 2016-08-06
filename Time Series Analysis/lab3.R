@@ -1,11 +1,31 @@
+#####################################################################
+# Directory         : /Users/bshur/School/Time Series Analysis
+# Program Name      : lab3.R
+# Original Developer: Brandon Shurick
+# Last Updated by   : Brandon Shurick
+# Last Updated      : 8/5/2015
+# -------------------------------------------------------------------
+#####################################################################
+
+
+#####################################################################
+## Setup
+
+# load libraries
 require(forecast)
 
+# load dataset
 google.data <- read.csv('/Users/bshur/School/Time Series Analysis/lab3/google_correlate_flight.csv')
-google.data$DateFmt <- as.Date(as.character(google.data$Date), format="%m/%d/%y", tz='UTC')
 fp <- ts(google.data[,c('flight.prices')], 
                           start=c(2004,1), 
                           end=c(2016,1),
                           frequency=52)
+
+#####################################################################
+
+
+#####################################################################
+## Data Exploration
 
 # plot time series 
 dev.off()
@@ -42,6 +62,11 @@ acf(fp.diff, lag.max=120,
 pacf(fp.diff, lag.max=120, 
         main='PACF of First Difference')
 
+#####################################################################
+
+
+#####################################################################
+## Fit Arima Model
 
 # arima model 
 get.best.arima <- function(x.ts, maxord = c(1,1,1,1,1,1))
@@ -72,6 +97,12 @@ train <- 1:(N - 53)
 get.best.arima(fp[train])
 fp.best_arima <- arima(x = fp[train], order=c(0,0,1), seasonal=list(order=c(1,0,0)))
 
+#####################################################################
+
+
+#####################################################################
+## Evaluate ARIMA Model
+
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
@@ -83,8 +114,14 @@ pacf(fp.best_arima$residuals, main='PACF: ARIMA (0,0,1)(1,0,0) In-sample Residua
 # summary 
 summary(fp.best_arima$residuals)
 
-# make forecast & plot 
+# make forecast 
 fp.best_arima.fcast <- forecast.Arima(fp.best_arima, h=52)
+
+# RMSE 
+rmse <- sqrt(mean(fp.best_arima.fcast$residuals**2))
+print(paste0('RMSE: ',round(rmse,4)))
+
+# Plot forecast vs original
 dev.off()
 par(mfrow=c(1,1))
 xlimits <- c(0, 628)
@@ -96,10 +133,13 @@ par(new=T)
 plot.ts(fitted(fp.best_arima.fcast), 
         col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='')
 par(new=T)
-plot.ts(fp, col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
+plot.ts(fp[train], col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
 
 # add legend
 leg.txt <- c("Original Series", "Fitted series", "Forecast")
 legend("topleft", legend=leg.txt, lty=c(2,1,1),
        col=c("navy","blue","blue"), lwd=c(1,1,2),
        bty='n', cex=1)
+
+#####################################################################
+
