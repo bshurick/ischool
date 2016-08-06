@@ -74,10 +74,12 @@ pacf(fp.diff, lag.max=120,
 ## Fit Arima Model
 
 # arima model 
-get.best.arima <- function(x.ts, maxord = c(1,1,1,1,1,1))
+get.best.arima <- function(x.ts, test.ts, method='AIC', maxord = c(1,1,1,1,1,1))
 {
   best.aic <- 1e8
+  best.rmse <- 1e8
   n <- length(x.ts)
+  H <- length(test.ts)
   for (p in 0:maxord[1]) for(d in 0:maxord[2]) for(q in 0:maxord[3])
   {
     for (P in 0:maxord[4]) for(D in 0:maxord[5]) for(Q in 0:maxord[6])
@@ -86,21 +88,39 @@ get.best.arima <- function(x.ts, maxord = c(1,1,1,1,1,1))
                    seas = list(order = c(P,D,Q),
                                frequency(x.ts)), method = "CSS")
       fit.aic <- -2 * fit$loglik + (log(n) + 1) * length(fit$coef)
-      if (fit.aic < best.aic)
+      fit.fcast <- forecast.Arima(fit, h=H)
+      fit.rmse <- sqrt(mean((fit.fcast$mean-test.ts)**2))
+      if (method=='RMSE')
       {
-        best.aic <- fit.aic
-        best.fit <- fit
-        best.model <- c(p,d,q,P,D,Q)
+        if (fit.rmse < best.rmse)
+        {
+          best.rmse <- fit.rmse
+          best.aic <- fit.aic
+          best.fit <- fit
+          best.model <- c(p,d,q,P,D,Q)
+        }
+      }
+      else 
+      {
+        if (fit.aic < best.aic)
+        {
+          best.rmse <- fit.rmse
+          best.aic <- fit.aic
+          best.fit <- fit
+          best.model <- c(p,d,q,P,D,Q)
+        }
       }
     }
   }
-  list(best.aic, best.fit, best.model)
+  list(best.rmse, best.aic, best.fit, best.model)
 }
 N <- length(fp)
 test <- (N - 52):(N)
 train <- 1:(N - 53)
-get.best.arima(fp[train])
-fp.best_arima <- arima(x = fp[train], order=c(0,0,1), seasonal=list(order=c(1,0,0)))
+get.best.arima(fp[train], fp[test], method='RMSE')
+
+# fit best model
+fp.best_arima <- arima(x = fp, order=c(0,0,1), seasonal=list(order=c(0,0,1)))
 
 #####################################################################
 
@@ -111,10 +131,10 @@ fp.best_arima <- arima(x = fp[train], order=c(0,0,1), seasonal=list(order=c(1,0,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-plot(fp.best_arima$residuals, main='ARIMA (0,0,1)(1,0,0) In-sample Residuals')
-hist(fp.best_arima$residuals, main='ARIMA (0,0,1)(1,0,0) In-sample Residuals')
-acf(fp.best_arima$residuals, main='ACF: ARIMA (0,0,1)(1,0,0) In-sample Residuals')
-pacf(fp.best_arima$residuals, main='PACF: ARIMA (0,0,1)(1,0,0) In-sample Residuals')
+plot(fp.best_arima$residuals, main='ARIMA (0,0,1)(0,0,1) In-sample Residuals')
+hist(fp.best_arima$residuals, main='ARIMA (0,0,1)(0,0,1) In-sample Residuals')
+acf(fp.best_arima$residuals, main='ACF: ARIMA (0,0,1)(0,0,1) In-sample Residuals')
+pacf(fp.best_arima$residuals, main='PACF: ARIMA (0,0,1)(0,0,1) In-sample Residuals')
 
 # summary 
 summary(fp.best_arima$residuals)
@@ -123,13 +143,13 @@ summary(fp.best_arima$residuals)
 fp.best_arima.fcast <- forecast.Arima(fp.best_arima, h=52)
 
 # RMSE 
-rmse <- sqrt(mean(fp.best_arima.fcast$residuals**2))
+rmse <- sqrt(mean((fp.best_arima.fcast$mean-fp[test][1:52])**2))
 print(paste0('RMSE: ',round(rmse,4)))
 
 # Plot forecast vs original
 dev.off()
 par(mfrow=c(1,1))
-xlimits <- c(0, 628)
+xlimits <- c(2004, 2017)
 ylimits <- c(-3, 6)
 plot(fp.best_arima.fcast, lty=2, xlim=xlimits,ylim=ylimits,
      main="Out-of-Sample Forecast",
@@ -138,7 +158,7 @@ par(new=T)
 plot.ts(fitted(fp.best_arima.fcast), 
         col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='')
 par(new=T)
-plot.ts(fp[train], col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
+plot.ts(fp, col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
 
 # add legend
 leg.txt <- c("Original Series", "Fitted series", "Forecast")
