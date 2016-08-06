@@ -1,3 +1,4 @@
+require(forecast)
 
 google.data <- read.csv('/Users/bshur/School/Time Series Analysis/lab3/google_correlate_flight.csv')
 google.data$DateFmt <- as.Date(as.character(google.data$Date), format="%m/%d/%y", tz='UTC')
@@ -7,27 +8,40 @@ fp <- ts(google.data[,c('flight.prices')],
                           frequency=52)
 
 # plot time series 
-par(mfrow=c(2,1))
-plot.ts(fp, main='Flight Price Searches, Time Series')
-plot.ts(filter(fp, rep(1,4)/4, sides=2), main='Flight Price Searches, 4-week Moving Average')
 dev.off()
+par(mfrow=c(2,2))
+plot.ts(fp, main='Flight Price Searches', lty=2, col='navy')
+lines(filter(fp, rep(1,12)/12, sides=2), 
+      main='Flight Price Searches, 12-week Moving Average',
+      ylab='Flight Searches',
+      xlab='Week',
+      col="blue")
+
+# add legend
+leg.txt <- c("Original Series", "Moving Average")
+legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
+       bty='n', cex=1)
 
 # experiment with differential
-par(mfrow=c(2,1))
 fp.diff <- diff(fp, lag=1)
-plot.ts(fp.diff, main='First Order Differential') 
-plot.ts(filter(fp.diff, rep(1,4)/4, sides=2), main='First Order Differential, 4-week Moving Average')
-dev.off()
+plot.ts(fp.diff, main='First Difference of Flight Price Searches', lty=2) 
+lines(filter(fp.diff, rep(1,12)/12, sides=2), 
+     main='First Order Differential, 12-week Moving Average',
+     ylab='Flight Searches',
+     xlab='Week',
+     col='blue')
 
-# calculate means
-mean(fp.diff)
-sd(fp.diff)
+# add legend
+leg.txt <- c("Original Series", "Moving Average")
+legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
+       bty='n', cex=1)
 
 # plot ACF and PCF
-par(mfrow=c(2,1))
-plot.ts(acf(fp.diff, lag.max=120), main='Flight Price Searches, ACF')
-plot.ts(pacf(fp.diff, lag.max=120), main='Flight Price Searches, PACF')
-dev.off()
+acf(fp.diff, lag.max=120, 
+        main='ACF of First Difference')
+pacf(fp.diff, lag.max=120, 
+        main='PACF of First Difference')
+
 
 # arima model 
 get.best.arima <- function(x.ts, maxord = c(1,1,1,1,1,1))
@@ -57,3 +71,35 @@ test <- (N - 52):(N)
 train <- 1:(N - 53)
 get.best.arima(fp[train])
 fp.best_arima <- arima(x = fp[train], order=c(0,0,1), seasonal=list(order=c(1,0,0)))
+
+# plot model in-sample residuals
+dev.off()
+par(mfrow=c(2,2))
+plot(fp.best_arima$residuals, main='ARIMA (0,0,1)(1,0,0) In-sample Residuals')
+hist(fp.best_arima$residuals, main='ARIMA (0,0,1)(1,0,0) In-sample Residuals')
+acf(fp.best_arima$residuals, main='ACF: ARIMA (0,0,1)(1,0,0) In-sample Residuals')
+pacf(fp.best_arima$residuals, main='PACF: ARIMA (0,0,1)(1,0,0) In-sample Residuals')
+
+# summary 
+summary(fp.best_arima$residuals)
+
+# make forecast & plot 
+fp.best_arima.fcast <- forecast.Arima(fp.best_arima, h=52)
+dev.off()
+par(mfrow=c(1,1))
+xlimits <- c(0, 628)
+ylimits <- c(-3, 6)
+plot(fp.best_arima.fcast, lty=2, xlim=xlimits,ylim=ylimits,
+     main="Out-of-Sample Forecast",
+     ylab="Original, Estimated, and Forecast Values")
+par(new=T)
+plot.ts(fitted(fp.best_arima.fcast), 
+        col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='')
+par(new=T)
+plot.ts(fp, col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
+
+# add legend
+leg.txt <- c("Original Series", "Fitted series", "Forecast")
+legend("topleft", legend=leg.txt, lty=c(2,1,1),
+       col=c("navy","blue","blue"), lwd=c(1,1,2),
+       bty='n', cex=1)
