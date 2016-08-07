@@ -188,7 +188,7 @@ str(gasOil)
 
 
 ####################################################################
-# Evaluate Dataset
+## Evaluate Dataset
 
 # Take summary statistics
 summary(gasOil)
@@ -201,7 +201,7 @@ gasOil.Price.ts <- ts(gasOil$Price, start=c(1978, 1), frequency=12)
 
 
 ####################################################################
-# Reproduce Correlation Results
+## Reproduce Correlation Results
 
 # Model Price~Production
 plot(gasOil[, c('Production','Price')])
@@ -212,7 +212,7 @@ summary(m)
 
 
 ####################################################################
-# Evaluate Dataset
+## Evaluate Dataset
 
 # Plot Time Series
 dev.off()
@@ -224,13 +224,11 @@ plot.ts(gasOil.Production.ts)
 dev.off()
 par(mfrow=c(2,1))
 acf(gasOil.Price.ts)
-acf(gasOil.Production.ts)
+pacf(gasOil.Price.ts)
 
 # Test for unit roots
 adf.test(gasOil.Price.ts)
-adf.test(gasOil.Production.ts)
 pp.test(gasOil.Price.ts)
-pp.test(gasOil.Production.ts)
 
 # Test for co-integration
 po.test(cbind(gasOil.Price.ts, gasOil.Production.ts))
@@ -332,3 +330,79 @@ legend("topleft", legend=leg.txt, lty=c(2,1,1),
 
 #####################################################################
 
+
+#####################################################################
+#########                      PART 3                       #########
+#####################################################################
+
+
+#####################################################################
+## Setup
+
+# Load var library
+require(vars)
+
+# Load data
+ex3series.data <- na.omit(read.csv('/Users/bshur/School/Time Series Analysis/lab3/ex3series.csv'))
+ex3series.s1 <- ts(ex3series.data[,c('series1')], 
+                   start=c(2006,1), 
+                   end=c(2016,5),
+                   frequency=12)
+ex3series.s2 <- ts(ex3series.data[,c('series2')], 
+                   start=c(2006,1), 
+                   end=c(2016,5),
+                   frequency=12)
+
+#####################################################################
+
+
+#####################################################################
+## Evaluate Dataset
+
+# Plot Time Series
+dev.off()
+par(mfrow=c(2,1))
+plot.ts(ex3series.s1, main='Series 1')
+plot.ts(ex3series.s2, main='Series 2')
+
+# Evaluate Correlograms
+dev.off()
+par(mfrow=c(2,1))
+acf(ex3series.s1)
+acf(ex3series.s2)
+
+# Test for unit roots
+adf.test(ex3series.s1)
+adf.test(ex3series.s2)
+pp.test(ex3series.s1)
+pp.test(ex3series.s2)
+
+# Test for co-integration
+po.test(cbind(ex3series.s1, ex3series.s2))
+
+#####################################################################
+
+
+#####################################################################
+## Fit VAR Model to both series'
+
+# Setup to fit VAR model
+ex3series.ar <- ar(cbind(ex3series.s1,ex3series.s2), method='ols', dmean=T, intercept=F)
+ex3series.ar$ar
+
+# Plot ACF of resdiual series'
+dev.off()
+par(mfrow=c(2,1))
+acf(ex3series.ar$res[-c(1:15),1])
+acf(ex3series.ar$res[-c(1:15),2])
+
+# Fit VAR model
+ex3series.var <- VAR(cbind(ex3series.s1, ex3series.s2), p=15, type='trend')
+coef(ex3series.var)
+
+# Predict 6 steps ahead
+dev.off()
+ex3series.pred <- predict(ex3series.var, n.ahead=6)
+plot(ex3series.pred)
+
+#####################################################################
