@@ -3,7 +3,7 @@
 # Program Name      : lab3.R
 # Original Developer: Brandon Shurick
 # Last Updated by   : Brandon Shurick
-# Last Updated      : 8/5/2015
+# Last Updated      : 8/9/2015
 # -------------------------------------------------------------------
 #####################################################################
 
@@ -67,6 +67,9 @@ acf(fp, lag.max=120,
 pacf(fp, lag.max=120, 
         main='PACF')
 
+# window FP to exclude first year
+fp <- window(fp, start=c(2005,1))
+
 #####################################################################
 
 
@@ -91,7 +94,7 @@ get.best.arima <- function(x.ts, test.ts=NA, method='AIC', maxord = c(1,1,1,1,1,
       if (method=='RMSE')
       {
         fit.fcast <- forecast.Arima(fit, h=H)
-        fit.rmse <- sqrt(mean((fit.fcast$mean-test.ts)**2))
+        fit.rmse <- sqrt(mean((test.ts-fit.fcast$mean)**2))
         if (fit.rmse < best.rmse)
         {
           best.rmse <- fit.rmse
@@ -117,12 +120,13 @@ get.best.arima <- function(x.ts, test.ts=NA, method='AIC', maxord = c(1,1,1,1,1,
 N <- length(fp)
 test <- (N - 51):(N)
 train <- 1:(N - 52)
-get.best.arima(fp[train], fp[test], method='RMSE')
+get.best.arima(fp[train], fp[test], method='RMSE', maxord = rep(2,6))
+get.best.arima(fp, method='AIC', maxord = rep(2,6))
 
 # fit best model
 fp.best_arima <- arima(x = fp, 
-                       order=c(0,0,1), 
-                       seasonal=list(order=c(0,0,1),  
+                       order=c(1,0,1), 
+                       seasonal=list(order=c(2,1,0),  
                                      frequency(fp)),
                        method = "CSS")
 
@@ -135,10 +139,11 @@ fp.best_arima <- arima(x = fp,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-plot(fp.best_arima$residuals, main='ARIMA (0,0,1)(0,0,1) In-sample Residuals')
-hist(fp.best_arima$residuals, main='ARIMA (0,0,1)(0,0,1) In-sample Residuals')
-acf(fp.best_arima$residuals, main='ACF: ARIMA (0,0,1)(0,0,1) In-sample Residuals')
-pacf(fp.best_arima$residuals, main='PACF: ARIMA (0,0,1)(0,0,1) In-sample Residuals')
+best_model_params <- '(1,0,1)(2,1,0)'
+plot(fp.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
+hist(fp.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
+acf(fp.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
+pacf(fp.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_params,' In-sample Residuals'))
 
 # summary 
 summary(fp.best_arima$residuals)
@@ -278,7 +283,7 @@ pacf(gasOil.Price.ts, lag.max=120,
 ## Fit Arima Model
 
 # Fit model using AIC 
-get.best.arima(gasOil.Price.ts)
+get.best.arima(gasOil.Price.ts, maxord = rep(2,6))
 
 # fit best model
 gasOil.Price.best_arima <- arima(x = gasOil.Price.ts, 
@@ -296,10 +301,11 @@ gasOil.Price.best_arima <- arima(x = gasOil.Price.ts,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-plot(gasOil.Price.best_arima$residuals, main='ARIMA (0,1,1)(1,0,1) In-sample Residuals')
-hist(gasOil.Price.best_arima$residuals, main='ARIMA (0,1,1)(1,0,1) In-sample Residuals')
-acf(gasOil.Price.best_arima$residuals, main='ACF: ARIMA (0,1,1)(1,0,1) In-sample Residuals')
-pacf(gasOil.Price.best_arima$residuals, main='PACF: ARIMA (0,1,1)(1,0,1) In-sample Residuals')
+best_model_params <- '(0,1,1)(1,0,1)'
+plot(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
+hist(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
+acf(gasOil.Price.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
+pacf(gasOil.Price.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_params,' In-sample Residuals'))
 
 # summary 
 summary(gasOil.Price.best_arima$residuals)
@@ -406,3 +412,4 @@ ex3series.pred <- predict(ex3series.var, n.ahead=6)
 plot(ex3series.pred)
 
 #####################################################################
+
