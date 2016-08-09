@@ -89,3 +89,7 @@ export SPARK_HOME=$(pwd)
 ./sbin/start-all.sh
 cd ~
 
+# install matplotlib
+sudo apt-get install -y libfreetype6-dev
+sudo ln -s /usr/include/freetype2/ft2build.h /usr/include/
+sudo pip install matplotlib
