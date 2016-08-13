@@ -120,8 +120,8 @@ get.best.arima(fp, method='AIC', maxord = c(1,1,1,2,2,2))
 
 # fit best model
 fp.best_arima <- arima(x = fp, 
-                       order=c(1,0,1), 
-                       seasonal=list(order=c(2,1,2),  
+                       order=c(1,1,1), 
+                       seasonal=list(order=c(0,1,1),  
                                      frequency(fp)),
                        method = "CSS")
 
