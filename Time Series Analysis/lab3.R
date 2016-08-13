@@ -153,12 +153,13 @@ xlimits <- c(2004, 2017)
 ylimits <- c(-3, 6)
 plot(fp.best_arima.fcast, lty=2, xlim=xlimits,ylim=ylimits,
      main="Out-of-Sample Forecast",
+     xlab='Week',
      ylab="Original, Estimated, and Forecast Values")
 par(new=T)
 plot.ts(fitted(fp.best_arima.fcast), 
-        col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='')
+        col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='',xlab='')
 par(new=T)
-plot.ts(fp, col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
+plot.ts(fp, col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="",xlab='',lty=2)
 
 # add legend
 leg.txt <- c("Original Series", "Fitted series", "Forecast")
@@ -305,12 +306,13 @@ ylimits <- c(0, 7.5)
 plot(gasOil.Price.best_arima.fcast, lty=2, 
      xlim=xlimits, ylim=ylimits,
      main="Out-of-Sample Forecast",
+     xlab='Month',
      ylab="Original, Estimated, and Forecast Values")
 par(new=T)
 plot.ts(fitted(gasOil.Price.best_arima.fcast), 
-        col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='')
+        col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='',xlab='')
 par(new=T)
-plot.ts(gasOil.Price.ts,col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="", lty=2)
+plot.ts(gasOil.Price.ts,col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="",xlab=''lty=2)
 
 # add legend
 leg.txt <- c("Original Series", "Fitted series", "Forecast")
