@@ -89,13 +89,7 @@ legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
        bty='n', cex=1)
 
 # experiment with differential
-fp.diff <- diff(fp, lag=1)
-plot.ts(fp.diff, main='First Difference of Flight Price Searches', lty=2) 
-lines(filter(fp.diff, rep(1,12)/12, sides=2), 
-     main='First Order Differential, 12-week Moving Average',
-     ylab='Flight Searches',
-     xlab='Week',
-     col='blue')
+hist(fp, main='Flight Price Searches Histogram',ylim=c(0,350)) 
 
 # add legend
 leg.txt <- c("Original Series", "Moving Average")
@@ -108,6 +102,9 @@ acf(fp, lag.max=120,
 pacf(fp, lag.max=120, 
         main='PACF')
 
+# exclude data before structure change
+# fp <- window(fp, start=c(2006,26))
+
 #####################################################################
 
 
@@ -118,13 +115,13 @@ test <- window(fp,start=c(2015,1),end=c(2016,1))
 get.best.arima(train, 
                test, 
                method='RMSE', 
-               maxord = rep(2,6))
-get.best.arima(fp, method='AIC', maxord = rep(2,6))
+               maxord = c(1,1,1,2,2,2))
+get.best.arima(fp, method='AIC', maxord = c(1,1,1,2,2,2))
 
 # fit best model
 fp.best_arima <- arima(x = fp, 
-                       order=c(1,1,1), 
-                       seasonal=list(order=c(2,2,1),  
+                       order=c(1,0,1), 
+                       seasonal=list(order=c(2,1,2),  
                                      frequency(fp)),
                        method = "CSS")
 
@@ -145,6 +142,10 @@ pacf(fp.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_params,' In-
 
 # summary 
 summary(fp.best_arima$residuals)
+
+# Dickey-Fuller test
+adf.test(fp.best_arima$residuals)
+pp.test(fp.best_arima$residuals)
 
 # make forecast 
 fp.best_arima.fcast <- forecast.Arima(fp.best_arima, h=52)
@@ -207,9 +208,13 @@ gasOil.Price.ts <- ts(gasOil$Price, start=c(1978, 1), frequency=12)
 ## Reproduce Correlation Results
 
 # Model Price~Production
-plot(gasOil[, c('Production','Price')])
+plot(gasOil[, c('Production','Price')], main='Likely AP Analsis Correlation')
 m <- lm(Price~Production, data=gasOil)
 summary(m)
+#0.0004626
+#0.0008247*c(1.96,-1.96)
+
+
 
 ####################################################################
 
