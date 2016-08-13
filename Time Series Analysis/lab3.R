@@ -76,11 +76,13 @@ fp <- ts(google.data[,c('flight.prices')],
 # plot time series 
 dev.off()
 par(mfrow=c(2,2))
-plot.ts(fp, main='Flight Price Searches', lty=2, col='navy')
+plot.ts(fp, 
+        main='Flight Price Searches', 
+        lty=2, 
+        ylab='Flight Searches',
+        xlab='Week',
+        col='navy')
 lines(filter(fp, rep(1,12)/12, sides=2), 
-      main='Flight Price Searches, 12-week Moving Average',
-      ylab='Flight Searches',
-      xlab='Week',
       col="blue")
 
 # add legend
@@ -220,14 +222,39 @@ summary(m)
 # Plot Time Series
 dev.off()
 par(mfrow=c(2,1))
-plot.ts(gasOil.Price.ts, main='')
-plot.ts(gasOil.Production.ts)
+plot.ts(gasOil.Price.ts, main='Gas Price Time Series')
+plot.ts(gasOil.Production.ts, main='Oil Production Time Series')
+
+# Evaluate time series for Gas Prices
+dev.off()
+par(mfrow=c(2,2))
+plot.ts(gasOil.Price.ts, 
+        main='Gas Price Time Series', 
+        lty=2, 
+        ylab='Gas Prices',
+        xlab='Month',
+        col='navy')
+lines(filter(gasOil.Price.ts, rep(1,12)/12, sides=2), 
+      col="blue")
+
+# add legend
+leg.txt <- c("Original Series", "Moving Average")
+legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
+       bty='n', cex=1)
+
+# experiment with differential
+hist(gasOil.Price.ts, main='Gas Prices Histogram',ylim=c(0,350)) 
+
+# plot ACF and PCF
+acf(gasOil.Price.ts, lag.max=36, 
+    main='ACF')
+pacf(gasOil.Price.ts, lag.max=36,
+     main='PACF')
+
 
 # Evaluate Correlograms
-dev.off()
-par(mfrow=c(2,1))
-acf(gasOil.Price.ts)
-pacf(gasOil.Price.ts)
+acf(gasOil.Price.ts, main='ACF')
+pacf(gasOil.Price.ts, main='PACF')
 
 # Test for unit roots
 adf.test(gasOil.Price.ts)
