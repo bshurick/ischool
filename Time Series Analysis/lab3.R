@@ -7,6 +7,47 @@
 # -------------------------------------------------------------------
 #####################################################################
 
+# get best arima model 
+get.best.arima <- function(x.ts, test.ts=NA, method='AIC', maxord = c(1,1,1,1,1,1))
+{
+  best.aic <- 1e8
+  best.rmse <- 1e8
+  n <- length(x.ts)
+  H <- length(test.ts)
+  for (p in 0:maxord[1]) for(d in 0:maxord[2]) for(q in 0:maxord[3])
+  {
+    for (P in 0:maxord[4]) for(D in 0:maxord[5]) for(Q in 0:maxord[6])
+    {
+      fit <- arima(x.ts, order = c(p,d,q),
+                   seas = list(order = c(P,D,Q),
+                               frequency(x.ts)), method = "CSS")
+      fit.aic <- -2 * fit$loglik + (log(n) + 1) * length(fit$coef)
+      if (method=='RMSE')
+      {
+        fit.fcast <- forecast.Arima(fit, h=H)
+        fit.rmse <- sqrt(mean((test.ts-fit.fcast$mean)**2))
+        if (fit.rmse < best.rmse)
+        {
+          best.rmse <- fit.rmse
+          best.aic <- fit.aic
+          best.fit <- fit
+          best.model <- c(p,d,q,P,D,Q)
+        }
+      }
+      else 
+      {
+        if (fit.aic < best.aic)
+        {
+          best.rmse <- NA
+          best.aic <- fit.aic
+          best.fit <- fit
+          best.model <- c(p,d,q,P,D,Q)
+        }
+      }
+    }
+  }
+  list(best.rmse, best.aic, best.fit, best.model)
+}
 
 #####################################################################
 #########                      PART 1                       #########
@@ -20,7 +61,7 @@
 require(forecast)
 
 # load dataset
-google.data <- read.csv('/Users/bshur/School/Time Series Analysis/lab3/google_correlate_flight.csv')
+google.data <- read.csv('/Users/brandonshurick/School/Time Series Analysis/lab3/google_correlate_flight.csv')
 fp <- ts(google.data[,c('flight.prices')], 
                           start=c(2004,1), 
                           end=c(2016,1),
@@ -75,52 +116,12 @@ fp <- window(fp, start=c(2005,1))
 
 #####################################################################
 ## Fit Arima Model
-
-# arima model 
-get.best.arima <- function(x.ts, test.ts=NA, method='AIC', maxord = c(1,1,1,1,1,1))
-{
-  best.aic <- 1e8
-  best.rmse <- 1e8
-  n <- length(x.ts)
-  H <- length(test.ts)
-  for (p in 0:maxord[1]) for(d in 0:maxord[2]) for(q in 0:maxord[3])
-  {
-    for (P in 0:maxord[4]) for(D in 0:maxord[5]) for(Q in 0:maxord[6])
-    {
-      fit <- arima(x.ts, order = c(p,d,q),
-                   seas = list(order = c(P,D,Q),
-                               frequency(x.ts)), method = "CSS")
-      fit.aic <- -2 * fit$loglik + (log(n) + 1) * length(fit$coef)
-      if (method=='RMSE')
-      {
-        fit.fcast <- forecast.Arima(fit, h=H)
-        fit.rmse <- sqrt(mean((test.ts-fit.fcast$mean)**2))
-        if (fit.rmse < best.rmse)
-        {
-          best.rmse <- fit.rmse
-          best.aic <- fit.aic
-          best.fit <- fit
-          best.model <- c(p,d,q,P,D,Q)
-        }
-      }
-      else 
-      {
-        if (fit.aic < best.aic)
-        {
-          best.rmse <- NA
-          best.aic <- fit.aic
-          best.fit <- fit
-          best.model <- c(p,d,q,P,D,Q)
-        }
-      }
-    }
-  }
-  list(best.rmse, best.aic, best.fit, best.model)
-}
-N <- length(fp)
-test <- (N - 51):(N)
-train <- 1:(N - 52)
-get.best.arima(fp[train], fp[test], method='RMSE', maxord = rep(2,6))
+train <- window(fp,end=c(2014,52))
+test <- window(fp,start=c(2015,1),end=c(2015,52))
+get.best.arima(train, 
+               test, 
+               method='RMSE', 
+               maxord = rep(2,6))
 get.best.arima(fp, method='AIC', maxord = rep(2,6))
 
 # fit best model
@@ -186,7 +187,7 @@ legend("topleft", legend=leg.txt, lty=c(2,1,1),
 require(tseries)
 
 # Read dataset 
-load('/Users/bshur/School/Time Series Analysis/lab3/gasOil.Rdata')
+load('/Users/brandonshurick/School/Time Series Analysis/lab3/gasOil.Rdata')
 str(gasOil)
 
 #####################################################################
@@ -271,6 +272,8 @@ legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
        bty='n', cex=1)
 
 # plot ACF and PCF
+dev.off()
+par(mfrow=c(2,1))
 acf(gasOil.Price.ts, lag.max=120, 
     main='ACF')
 pacf(gasOil.Price.ts, lag.max=120, 
@@ -283,12 +286,12 @@ pacf(gasOil.Price.ts, lag.max=120,
 ## Fit Arima Model
 
 # Fit model using AIC 
-get.best.arima(gasOil.Price.ts, maxord = rep(2,6))
+get.best.arima(gasOil.Price.ts, maxord = c(0,1,2,0,0,0))
 
 # fit best model
 gasOil.Price.best_arima <- arima(x = gasOil.Price.ts, 
-                                 order=c(0,1,1), 
-                                 seasonal=list(order=c(1,0,1),  
+                                 order=c(0,1,2), 
+                                 seasonal=list(order=c(0,0,0),  
                                                frequency(gasOil.Price.ts)),
                                  method = "CSS")
 
@@ -301,7 +304,7 @@ gasOil.Price.best_arima <- arima(x = gasOil.Price.ts,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-best_model_params <- '(0,1,1)(1,0,1)'
+best_model_params <- '(0,1,1)(1,0,2)'
 plot(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 hist(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 acf(gasOil.Price.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
