@@ -264,7 +264,7 @@ po.test(cbind(gasOil.Price.ts, gasOil.Production.ts))
 ## Fit Arima Model
 
 # Fit model using AIC 
-get.best.arima(gasOil.Price.ts, maxord = c(0,1,2,0,0,0))
+get.best.arima(gasOil.Price.ts, method='AIC', maxord = c(2,2,2,0,0,0))
 
 # fit best model
 gasOil.Price.best_arima <- arima(x = gasOil.Price.ts, 
@@ -282,7 +282,7 @@ gasOil.Price.best_arima <- arima(x = gasOil.Price.ts,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-best_model_params <- '(0,1,1)(1,0,2)'
+best_model_params <- '(0,1,2)(0,0,0)'
 plot(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 hist(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 acf(gasOil.Price.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
