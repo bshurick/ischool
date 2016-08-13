@@ -91,11 +91,6 @@ legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
 # experiment with differential
 hist(fp, main='Flight Price Searches Histogram',ylim=c(0,350)) 
 
-# add legend
-leg.txt <- c("Original Series", "Moving Average")
-legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
-       bty='n', cex=1)
-
 # plot ACF and PCF
 acf(fp, lag.max=120, 
         main='ACF')
