@@ -108,9 +108,6 @@ acf(fp, lag.max=120,
 pacf(fp, lag.max=120, 
         main='PACF')
 
-# window FP to exclude first years
-fp <- window(fp, start=c(2007,1))
-
 #####################################################################
 
 
@@ -126,7 +123,7 @@ get.best.arima(fp, method='AIC', maxord = rep(2,6))
 
 # fit best model
 fp.best_arima <- arima(x = fp, 
-                       order=c(2,1,1), 
+                       order=c(1,1,1), 
                        seasonal=list(order=c(2,2,1),  
                                      frequency(fp)),
                        method = "CSS")
@@ -140,7 +137,7 @@ fp.best_arima <- arima(x = fp,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-best_model_params <- '(2,1,1)(2,2,1)'
+best_model_params <- '(1,1,1)(2,2,1)[52]'
 plot(fp.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 hist(fp.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 acf(fp.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
