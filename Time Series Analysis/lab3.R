@@ -131,7 +131,7 @@ fp.best_arima <- arima(x = fp,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-best_model_params <- '(1,1,1)(2,2,1)[52]'
+best_model_params <- '(1,1,1)(0,1,1)[52]'
 plot(fp.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 hist(fp.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 acf(fp.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
@@ -141,8 +141,7 @@ pacf(fp.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_params,' In-
 summary(fp.best_arima$residuals)
 
 # Dickey-Fuller test
-adf.test(fp.best_arima$residuals)
-pp.test(fp.best_arima$residuals)
+Box.test(fp.best_arima$residuals)
 
 # make forecast 
 fp.best_arima.fcast <- forecast.Arima(fp.best_arima, h=52)
