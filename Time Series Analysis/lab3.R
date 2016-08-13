@@ -140,7 +140,7 @@ pacf(fp.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_params,' In-
 # summary 
 summary(fp.best_arima$residuals)
 
-# Dickey-Fuller test
+# Ljung-box test
 Box.test(fp.best_arima$residuals)
 
 # make forecast 
@@ -250,57 +250,12 @@ acf(gasOil.Price.ts, lag.max=36,
 pacf(gasOil.Price.ts, lag.max=36,
      main='PACF')
 
-
-# Evaluate Correlograms
-acf(gasOil.Price.ts, main='ACF')
-pacf(gasOil.Price.ts, main='PACF')
-
 # Test for unit roots
 adf.test(gasOil.Price.ts)
 pp.test(gasOil.Price.ts)
 
 # Test for co-integration
 po.test(cbind(gasOil.Price.ts, gasOil.Production.ts))
-
-# Fails to reject null, go with univariate model
-dev.off()
-par(mfrow=c(2,2))
-plot.ts(gasOil.Price.ts, main='Gas Prices', lty=2, col='navy', ylab='Gas Prices')
-lines(filter(gasOil.Price.ts, rep(1,12)/12, sides=2), 
-      main='Gas Prices, 12-month Moving Average',
-      ylab='Gas Prices',
-      xlab='Month',
-      col="blue")
-
-# add legend
-leg.txt <- c("Original Series", "Moving Average")
-legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
-       bty='n', cex=1)
-
-# experiment with differential
-gasOil.Price.ts.diff <- diff(gasOil.Price.ts, lag=1)
-plot.ts(gasOil.Price.ts.diff, 
-        main='First Difference of Gas Prices', 
-        lty=2,
-        ylab='Gas Price Differential') 
-lines(filter(gasOil.Price.ts.diff, rep(1,12)/12, sides=2), 
-      main='Gas Prices, 12-month Moving Average',
-      ylab='Gas Prices',
-      xlab='Month',
-      col='blue')
-
-# add legend
-leg.txt <- c("Original Series", "Moving Average")
-legend("topleft", legend=leg.txt, lty=c(2,1), col=c("navy","blue"),
-       bty='n', cex=1)
-
-# plot ACF and PCF
-dev.off()
-par(mfrow=c(2,1))
-acf(gasOil.Price.ts, lag.max=120, 
-    main='ACF')
-pacf(gasOil.Price.ts, lag.max=120, 
-     main='PACF')
 
 #####################################################################
 
@@ -335,6 +290,9 @@ pacf(gasOil.Price.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_pa
 
 # summary 
 summary(gasOil.Price.best_arima$residuals)
+
+# Ljung-box test
+Box.test(gasOil.Price.best_arima$residuals)
 
 # make forecast 
 gasOil.Price.best_arima.fcast <- forecast.Arima(gasOil.Price.best_arima, h=12*4-2)
