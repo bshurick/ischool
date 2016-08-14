@@ -255,6 +255,8 @@ pacf(gasOil.Price.ts, lag.max=36,
 # Test for unit roots
 adf.test(gasOil.Price.ts)
 pp.test(gasOil.Price.ts)
+adf.test(gasOil.Production.ts)
+pp.test(gasOil.Production.ts)
 
 # Test for co-integration
 po.test(cbind(gasOil.Price.ts, gasOil.Production.ts))
@@ -266,7 +268,7 @@ po.test(cbind(gasOil.Price.ts, gasOil.Production.ts))
 ## Fit Arima Model
 
 # Fit model using AIC 
-get.best.arima(gasOil.Price.ts, method='AIC', maxord = c(2,1,2,0,0,0))
+get.best.arima(gasOil.Price.ts, method='AIC', maxord = c(2,1,2,1,1,1))
 
 # fit best model
 gasOil.Price.best_arima <- Arima(x = gasOil.Price.ts, 
