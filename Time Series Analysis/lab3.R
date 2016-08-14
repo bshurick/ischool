@@ -208,6 +208,7 @@ gasOil.Price.ts <- ts(gasOil$Price, start=c(1978, 1), frequency=12)
 plot(gasOil[, c('Production','Price')], main='Likely AP Analsis Correlation')
 m <- lm(Price~Production, data=gasOil)
 summary(m)
+cor.test(gasOil$Price, gasOil$Production)
 #0.0004626
 #0.0008247*c(1.96,-1.96)
 
@@ -265,14 +266,15 @@ po.test(cbind(gasOil.Price.ts, gasOil.Production.ts))
 ## Fit Arima Model
 
 # Fit model using AIC 
-get.best.arima(gasOil.Price.ts, method='AIC', maxord = c(2,2,2,0,0,0))
+get.best.arima(gasOil.Price.ts, method='AIC', maxord = c(2,1,2,0,0,0))
 
 # fit best model
-gasOil.Price.best_arima <- arima(x = gasOil.Price.ts, 
+gasOil.Price.best_arima <- Arima(x = gasOil.Price.ts, 
                                  order=c(0,1,2), 
                                  seasonal=list(order=c(0,0,0),  
                                                frequency(gasOil.Price.ts)),
                                  method = "CSS")
+summary(gasOil.Price.best_arima)
 
 #####################################################################
 
@@ -283,7 +285,7 @@ gasOil.Price.best_arima <- arima(x = gasOil.Price.ts,
 # plot model in-sample residuals
 dev.off()
 par(mfrow=c(2,2))
-best_model_params <- '(0,1,2)(0,0,0)'
+best_model_params <- '(2,1,5)(0,0,0)'
 plot(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 hist(gasOil.Price.best_arima$residuals, main=paste0('ARIMA ',best_model_params,' In-sample Residuals'))
 acf(gasOil.Price.best_arima$residuals, main=paste0('ACF: ARIMA ',best_model_params,' In-sample Residuals'))
@@ -293,7 +295,7 @@ pacf(gasOil.Price.best_arima$residuals, main=paste0('PACF: ARIMA ',best_model_pa
 summary(gasOil.Price.best_arima$residuals)
 
 # Ljung-box test
-Box.test(gasOil.Price.best_arima$residuals)
+Box.test(gasOil.Price.best_arima$residuals, lag=12, type = "Ljung")
 
 # make forecast 
 gasOil.Price.best_arima.fcast <- forecast.Arima(gasOil.Price.best_arima, h=12*4-2)
@@ -312,7 +314,7 @@ par(new=T)
 plot.ts(fitted(gasOil.Price.best_arima.fcast), 
         col="blue",lty=1,axes=F, xlim=xlimits,ylim=ylimits,ylab='',xlab='')
 par(new=T)
-plot.ts(gasOil.Price.ts,col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="",xlab=''lty=2)
+plot.ts(gasOil.Price.ts,col="navy",axes=F,xlim=xlimits,ylim=ylimits,ylab="",xlab='',lty=2)
 
 # add legend
 leg.txt <- c("Original Series", "Fitted series", "Forecast")
@@ -335,7 +337,7 @@ legend("topleft", legend=leg.txt, lty=c(2,1,1),
 require(vars)
 
 # Load data
-ex3series.data <- na.omit(read.csv('/Users/bshur/School/Time Series Analysis/lab3/ex3series.csv'))
+ex3series.data <- na.omit(read.csv('/Users/brandonshurick/School/Time Series Analysis/lab3/ex3series.csv'))
 ex3series.s1 <- ts(ex3series.data[,c('series1')], 
                    start=c(2006,1), 
                    end=c(2016,5),
@@ -394,7 +396,7 @@ coef(ex3series.var)
 
 # Predict 6 steps ahead
 dev.off()
-ex3series.pred <- predict(ex3series.var, n.ahead=6)
+ex3series.pred <- predict(ex3series.var, n.ahead=12)
 plot(ex3series.pred)
 
 #####################################################################
