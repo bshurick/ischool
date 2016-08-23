@@ -355,22 +355,26 @@ ex3series.s2 <- ts(ex3series.data[,c('series2')],
 #####################################################################
 ## Evaluate Dataset
 
-# Plot Time Series
+# Plot Time Series 1
 dev.off()
-par(mfrow=c(2,1))
+par(mfrow=c(2,2))
 plot.ts(ex3series.s1, main='Series 1')
-plot.ts(ex3series.s2, main='Series 2')
+hist(ex3series.s1, main='Histogram')
+acf(ex3series.s1, main='ACF')
+pacf(ex3series.s1, main='PACF')
 
-# Evaluate Correlograms
+# Plot Time Series 2
 dev.off()
-par(mfrow=c(2,1))
-acf(ex3series.s1)
-acf(ex3series.s2)
+par(mfrow=c(2,2))
+plot.ts(ex3series.s2, main='Series 2')
+hist(ex3series.s2, main='Histogram Series 2')
+acf(ex3series.s2, main='ACF Series 2')
+pacf(ex3series.s2, main='PACF Series 2')
 
 # Test for unit roots
 adf.test(ex3series.s1)
-adf.test(ex3series.s2)
 pp.test(ex3series.s1)
+adf.test(ex3series.s2)
 pp.test(ex3series.s2)
 
 # Test for co-integration
@@ -389,8 +393,8 @@ ex3series.ar$ar
 # Plot ACF of resdiual series'
 dev.off()
 par(mfrow=c(2,1))
-acf(ex3series.ar$res[-c(1:15),1])
-acf(ex3series.ar$res[-c(1:15),2])
+acf(ex3series.ar$res[-c(1:15),1], main='ACF Series 1 Residuals')
+acf(ex3series.ar$res[-c(1:15),2], main='ACF Series 2 Residuals')
 
 # Fit VAR model
 ex3series.var <- VAR(cbind(ex3series.s1, ex3series.s2), p=15, type='trend')
@@ -398,7 +402,7 @@ coef(ex3series.var)
 
 # Predict 6 steps ahead
 dev.off()
-ex3series.pred <- predict(ex3series.var, n.ahead=12)
+ex3series.pred <- predict(ex3series.var, n.ahead=24)
 plot(ex3series.pred)
 
 #####################################################################
